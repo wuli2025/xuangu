@@ -88,10 +88,12 @@ server = ["dep:axum", "dep:tower", "dep:tower-http", "dep:futures-util"]
 
 # server 二进制：浏览器前端 + REST/WS 后端（替代 Tauri 外壳）。
 # 构建：cargo build --release --bin polaris-server --no-default-features --features server
-[[bin]]
-name = "polaris-server"
-path = "src/bin/polaris-server.rs"
-required-features = ["server"]
+# SENTIO 桌面安装包不含 Docker 服务端——注释掉该 bin，避免 NSIS 打包器枚举到未构建的
+# polaris-server.exe 而报"找不到文件"。需要服务端时取消注释并按上面命令单独构建。
+# [[bin]]
+# name = "polaris-server"
+# path = "src/bin/polaris-server.rs"
+# required-features = ["server"]
 
 # 桌面二进制保持默认（main.rs）。
 [[bin]]

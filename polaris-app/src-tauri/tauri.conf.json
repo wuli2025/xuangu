@@ -41,8 +41,8 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
-    "createUpdaterArtifacts": true,
+    "targets": ["nsis"],
+    "createUpdaterArtifacts": false,
     "resources": [
       "resources/seed-kb/**/*"
     ],
