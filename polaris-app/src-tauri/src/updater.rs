@@ -94,7 +94,7 @@ static UPDATER: Lazy<Mutex<Inner>> = Lazy::new(|| {
 /// 并据落盘标记做「重启续提示」。不 emit（此刻前端还没监听）。
 pub fn init(app: &AppHandle) -> Result<()> {
     let user = UserDirs::new().ok_or_else(|| anyhow::anyhow!("no user dir"))?;
-    let dir = user.home_dir().join("Polaris").join("data");
+    let dir = user.home_dir().join("ZhiTouGu").join("data");
     fs::create_dir_all(&dir)?;
     let path = dir.join("updater.json");
 

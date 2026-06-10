@@ -70,7 +70,7 @@ function whyText(r: StockRec, score: number): string {
     <div class="inner">
       <header class="head">
         <div>
-          <div class="eyebrow">SENTIO · 选股雷达</div>
+          <div class="eyebrow">智投顾 · 选股雷达</div>
           <h1>选股雷达</h1>
           <div class="lead">圈定范围 → AI 扫全网情绪 → 把机会按反向逻辑排好序</div>
         </div>

@@ -345,7 +345,7 @@ pub struct UserSkill {
 
 /// 用户 skills 根目录: ~/Polaris/skills/
 fn skills_dir() -> Option<PathBuf> {
-    directories::UserDirs::new().map(|u| u.home_dir().join("Polaris").join("skills"))
+    directories::UserDirs::new().map(|u| u.home_dir().join("ZhiTouGu").join("skills"))
 }
 
 fn now_secs() -> i64 {

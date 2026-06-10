@@ -22,7 +22,7 @@ pub fn discover_key() -> Option<String> {
         }
     }
     let home = directories::UserDirs::new()?.home_dir().to_path_buf();
-    let pj = home.join("Polaris").join("data").join("providers.json");
+    let pj = home.join("ZhiTouGu").join("data").join("providers.json");
     let v: Value = serde_json::from_str(&std::fs::read_to_string(pj).ok()?).ok()?;
     for it in v.get("items")?.as_array()? {
         let id = it.get("id").and_then(|x| x.as_str()).unwrap_or("");

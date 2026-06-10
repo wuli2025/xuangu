@@ -61,7 +61,7 @@ fn project_claude_md_path(project_id: &str) -> Option<PathBuf> {
     let user = UserDirs::new()?;
     Some(
         user.home_dir()
-            .join("Polaris")
+            .join("ZhiTouGu")
             .join("projects")
             .join(project_id)
             .join("CLAUDE.md"),

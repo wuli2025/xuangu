@@ -34,7 +34,7 @@ const evidence = computed(() => (cur.value ? Object.entries(cur.value.evidence) 
     <div class="inner">
       <header class="head">
         <div>
-          <div class="eyebrow">SENTIO · 个股报告</div>
+          <div class="eyebrow">智投顾 · 个股报告</div>
           <h1>个股报告</h1>
         </div>
         <select v-model="selected" class="picker">

@@ -74,7 +74,7 @@ impl FeishuConfig {
 fn config_path() -> Option<PathBuf> {
     UserDirs::new().map(|u| {
         u.home_dir()
-            .join("Polaris")
+            .join("ZhiTouGu")
             .join("data")
             .join("feishu.json")
     })
@@ -402,7 +402,7 @@ static GW_DEDUP: Lazy<Mutex<DedupRing>> = Lazy::new(|| Mutex::new(DedupRing::new
 static SHOULD_RUN: AtomicBool = AtomicBool::new(false);
 
 fn bridge_dir() -> Option<PathBuf> {
-    UserDirs::new().map(|u| u.home_dir().join("Polaris").join("feishu-bridge"))
+    UserDirs::new().map(|u| u.home_dir().join("ZhiTouGu").join("feishu-bridge"))
 }
 fn emit_log(app: &AppHandle, text: impl Into<String>) {
     let _ = app.emit("feishu://log", text.into());

@@ -319,7 +319,7 @@ fn codex_route_config(port: u16) -> Value {
 
 pub fn init(_app: &AppHandle) -> Result<()> {
     let user = UserDirs::new().ok_or_else(|| anyhow::anyhow!("no user dir"))?;
-    let dir = user.home_dir().join("Polaris").join("data");
+    let dir = user.home_dir().join("ZhiTouGu").join("data");
     fs::create_dir_all(&dir)?;
     let path = dir.join("providers.json");
     *STORE_PATH.write() = path.clone();

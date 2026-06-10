@@ -9,8 +9,8 @@ resolver = "2"
 
 [package]
 name = "polaris-app"
-version = "0.2.20"
-description = "Polaris - 本地优先 AI 工作台 (MVP)"
+version = "0.1.0"
+description = "智投顾 - AI 智能选股舆情终端"
 authors = ["winner3388"]
 edition = "2021"
 # 有两个 bin(polaris-app 桌面 / polaris-server Docker)，`cargo run`(tauri dev) 默认跑桌面壳

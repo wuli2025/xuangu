@@ -74,7 +74,7 @@ static STATE_PATH: Lazy<RwLock<PathBuf>> = Lazy::new(|| RwLock::new(PathBuf::new
 
 pub fn init(_app: &AppHandle) -> Result<()> {
     let user = UserDirs::new().ok_or_else(|| anyhow::anyhow!("no user dir"))?;
-    let dir = user.home_dir().join("Polaris").join("data");
+    let dir = user.home_dir().join("ZhiTouGu").join("data");
     fs::create_dir_all(&dir)?;
     let path = dir.join("state.json");
     *STATE_PATH.write() = path.clone();
@@ -162,7 +162,7 @@ fn write_mao_persona(project_id: &str) {
     let Some(user) = UserDirs::new() else { return };
     let dir = user
         .home_dir()
-        .join("Polaris")
+        .join("ZhiTouGu")
         .join("projects")
         .join(project_id);
     let path = dir.join("CLAUDE.md");
@@ -390,7 +390,7 @@ fn project_dir(project_id: &str) -> Option<PathBuf> {
     let user = UserDirs::new()?;
     Some(
         user.home_dir()
-            .join("Polaris")
+            .join("ZhiTouGu")
             .join("projects")
             .join(project_id),
     )

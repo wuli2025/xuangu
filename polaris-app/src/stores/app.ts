@@ -12,7 +12,6 @@ export type ViewKey =
   | "report" // SENTIO 个股报告
   | "automation" // 盯盘自动化
   | "chat" // 对话后台引擎(无导航，供盯盘/报告生成调用)
-  | "sandbox"
   | "env_doctor"
   | "update"
   | "settings";

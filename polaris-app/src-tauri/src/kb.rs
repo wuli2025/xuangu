@@ -88,7 +88,7 @@ pub fn init(_app: &AppHandle) -> Result<()> {
 fn default_kb_root() -> Result<PathBuf> {
     let user = UserDirs::new().ok_or_else(|| anyhow::anyhow!("no user dir"))?;
     let home = user.home_dir();
-    Ok(home.join("Polaris").join("PolarisKB"))
+    Ok(home.join("ZhiTouGu").join("PolarisKB"))
 }
 
 // ───────────────────────── 名人资料包 (KB Packs) ─────────────────────────
@@ -243,7 +243,7 @@ struct AppSettings {
 }
 
 fn settings_path() -> Result<PathBuf> {
-    let pd = ProjectDirs::from("com", "polaris", "polaris-app")
+    let pd = ProjectDirs::from("com", "zhitougu", "zhitougu-app")
         .ok_or_else(|| anyhow::anyhow!("no config dir"))?;
     let dir = pd.config_dir().to_path_buf();
     fs::create_dir_all(&dir)?;

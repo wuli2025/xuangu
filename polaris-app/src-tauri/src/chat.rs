@@ -924,7 +924,7 @@ fn conversation_dir(conv_id: Option<&str>) -> PathBuf {
         kb_root.join("conversations").join(id)
     } else {
         UserDirs::new()
-            .map(|u| u.home_dir().join("Polaris").join("data").join("artifacts"))
+            .map(|u| u.home_dir().join("ZhiTouGu").join("data").join("artifacts"))
             .unwrap_or_else(|| PathBuf::from("artifacts"))
             .join(id)
     }
@@ -1692,7 +1692,7 @@ pub struct ArtifactSearchHit {
 fn allowed_open_roots() -> Vec<PathBuf> {
     let mut roots: Vec<PathBuf> = Vec::new();
     if let Some(u) = UserDirs::new() {
-        roots.push(u.home_dir().join("Polaris"));
+        roots.push(u.home_dir().join("ZhiTouGu"));
     }
     let kb_root = PathBuf::from(kb::kb_root());
     if !kb_root.as_os_str().is_empty() {
@@ -1727,7 +1727,7 @@ fn conversation_roots() -> Vec<PathBuf> {
         roots.push(kb_root.join("conversations"));
     }
     if let Some(u) = UserDirs::new() {
-        roots.push(u.home_dir().join("Polaris").join("data").join("artifacts"));
+        roots.push(u.home_dir().join("ZhiTouGu").join("data").join("artifacts"));
     }
     roots
 }

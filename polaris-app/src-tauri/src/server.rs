@@ -50,7 +50,7 @@ pub async fn serve() -> anyhow::Result<()> {
     // claude 自动信任整棵树。桌面版靠 `CARGO_MANIFEST_DIR` 的父级，但那是编译期路径，
     // 容器运行时不存在 → 这里显式把进程工作目录设到数据根，避免 claude 落到 `/`。
     if let Some(u) = directories::UserDirs::new() {
-        let data_root = u.home_dir().join("Polaris");
+        let data_root = u.home_dir().join("ZhiTouGu");
         let _ = std::fs::create_dir_all(&data_root);
         if let Err(e) = std::env::set_current_dir(&data_root) {
             eprintln!("[polaris-server] 设工作目录失败({}): {e}", data_root.display());
@@ -136,7 +136,7 @@ async fn status(State(state): State<AppState>) -> Response {
 
 fn collect_status(auth_set: bool) -> Value {
     let data_root = directories::UserDirs::new()
-        .map(|u| u.home_dir().join("Polaris"))
+        .map(|u| u.home_dir().join("ZhiTouGu"))
         .unwrap_or_else(|| PathBuf::from("/root/Polaris"));
     json!({
         "ok": true,
@@ -659,7 +659,7 @@ async fn upload(
 
 fn upload_dir() -> PathBuf {
     if let Some(u) = directories::UserDirs::new() {
-        u.home_dir().join("Polaris").join("uploads-inbox")
+        u.home_dir().join("ZhiTouGu").join("uploads-inbox")
     } else {
         PathBuf::from("/tmp/polaris-uploads")
     }
@@ -737,7 +737,7 @@ fn allowed_roots() -> Vec<PathBuf> {
         v.push(c);
     }
     if let Some(u) = directories::UserDirs::new() {
-        if let Ok(c) = std::fs::canonicalize(u.home_dir().join("Polaris")) {
+        if let Ok(c) = std::fs::canonicalize(u.home_dir().join("ZhiTouGu")) {
             v.push(c);
         }
     }

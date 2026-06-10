@@ -1,8 +1,9 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "SENTIO",
+  "productName": "智投顾",
+  "mainBinaryName": "ZhiTouGu",
   "version": "0.1.0",
-  "identifier": "com.sentio.stock",
+  "identifier": "com.zhitougu.app",
   "build": {
     "beforeDevCommand": "npm run dev",
     "beforeBuildCommand": "npm run build",
@@ -12,7 +13,7 @@
   "app": {
     "windows": [
       {
-        "title": "SENTIO · AI 智能选股舆情终端",
+        "title": "智投顾 · AI 智能选股舆情终端",
         "width": 1280,
         "height": 820,
         "minWidth": 960,
@@ -20,7 +21,7 @@
         "decorations": true,
         "resizable": true,
         "fullscreen": false,
-        "theme": "Light"
+        "theme": "Dark"
       }
     ],
     "security": {
@@ -43,9 +44,7 @@
     "active": true,
     "targets": ["nsis"],
     "createUpdaterArtifacts": false,
-    "resources": [
-      "resources/seed-kb/**/*"
-    ],
+    "resources": [],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -54,8 +53,8 @@
       "icons/icon.ico"
     ],
     "category": "Productivity",
-    "shortDescription": "AI 智能选股舆情终端",
-    "longDescription": "SENTIO 是一个报告型 AI 选股舆情终端：输入自选股，自动产出情绪温度、买卖建议与反向预警。研究参考，不构成投资建议。",
+    "shortDescription": "智投顾 · AI 智能选股舆情终端",
+    "longDescription": "智投顾是一个报告型 AI 选股舆情终端：输入自选股，自动产出情绪温度、买卖建议与反向预警。研究参考，不构成投资建议。",
     "windows": {
       "webviewInstallMode": {
         "type": "downloadBootstrapper"

@@ -28,7 +28,7 @@ const updated = computed(() =>
     <div class="inner">
       <header class="head">
         <div>
-          <div class="eyebrow">SENTIO · AI 智能选股舆情终端</div>
+          <div class="eyebrow">智投顾 · AI 智能选股舆情终端</div>
           <h1>舆情看板</h1>
         </div>
         <div class="live" v-if="board">数据 {{ updated }} · 点任意行生成报告</div>
