@@ -9,9 +9,8 @@ import {
 export type ViewKey =
   | "board" // SENTIO 舆情看板
   | "radar" // SENTIO 选股雷达
-  | "report" // SENTIO 个股报告
-  | "automation" // 盯盘自动化
-  | "chat" // 对话后台引擎(无导航，供盯盘/报告生成调用)
+  | "report" // 个股报告
+  | "chat" // 对话后台引擎(无导航，供报告生成调用)
   | "env_doctor"
   | "update"
   | "settings";

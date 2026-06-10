@@ -32,12 +32,11 @@ const app = useAppStore();
 const chat = useChatStore();
 
 type NavItem = { key: typeof app.view; label: string; icon: any };
-// SENTIO 顶层：舆情看板 / 选股雷达 / 个股报告 三屏 + 盯盘自动化
+// 智投顾顶层：舆情看板 / 选股雷达 / 个股报告 三屏
 const primaryNav: NavItem[] = [
   { key: "board", label: "舆情看板", icon: Activity },
   { key: "radar", label: "选股雷达", icon: Radar },
   { key: "report", label: "个股报告", icon: FileText },
-  { key: "automation", label: "盯盘自动化", icon: Clock },
 ];
 // 收纳进「更多」的次要项（仅保留基础设施：更新 / 环境 / 设置）
 const moreNav: NavItem[] = [
