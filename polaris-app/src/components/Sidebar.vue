@@ -1,0 +1,702 @@
+<script setup lang="ts">
+import { onMounted, ref, computed } from "vue";
+import {
+  Activity,
+  Radar,
+  FileText,
+  MessagesSquare,
+  Library,
+  Waypoints,
+  Clock,
+  Puzzle,
+  CloudDownload,
+  Drama,
+  MessageCircle,
+  Stethoscope,
+  Server,
+  Settings,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Pin,
+  Folder,
+  FolderOpen,
+  MoreHorizontal,
+  Archive,
+} from "@lucide/vue";
+import { useAppStore } from "../stores/app";
+import { useChatStore } from "../stores/chat";
+import ProviderDock from "./ProviderDock.vue";
+import type { Conversation } from "../tauri";
+
+const app = useAppStore();
+const chat = useChatStore();
+
+type NavItem = { key: typeof app.view; label: string; icon: any };
+// SENTIO 顶层：舆情看板 / 选股雷达 / 个股报告 三屏 + 盯盘自动化
+const primaryNav: NavItem[] = [
+  { key: "board", label: "舆情看板", icon: Activity },
+  { key: "radar", label: "选股雷达", icon: Radar },
+  { key: "report", label: "个股报告", icon: FileText },
+  { key: "automation", label: "盯盘自动化", icon: Clock },
+];
+// 收纳进「更多」的次要项（仅保留基础设施：更新 / 环境 / 设置）
+const moreNav: NavItem[] = [
+  { key: "update", label: "更新", icon: CloudDownload },
+  { key: "env_doctor", label: "环境", icon: Stethoscope },
+  { key: "settings", label: "设置", icon: Settings },
+];
+const showMore = ref(false);
+const moreActive = computed(() => moreNav.some((i) => i.key === app.view));
+function pickNav(k: typeof app.view) {
+  app.setView(k);
+}
+
+const newProjectName = ref("");
+const showNewProject = ref(false);
+
+onMounted(() => {
+  app.refreshProjects();
+});
+
+async function submitNewProject() {
+  const n = newProjectName.value.trim();
+  if (!n) {
+    showNewProject.value = false;
+    return;
+  }
+  await app.createProject(n);
+  newProjectName.value = "";
+  showNewProject.value = false;
+}
+
+async function newConv(pid: string) {
+  await app.createConversation(pid);
+}
+
+async function confirmDelete(c: Conversation) {
+  if (confirm(`删除对话「${c.title}」?(消息也会被清空)`)) {
+    await app.deleteConversation(c);
+  }
+}
+
+// 项目「…」更多菜单（仿 Codex 项目操作）：在资源管理器打开 / 归档移除
+const openMenuPid = ref<string | null>(null);
+function toggleProjMenu(pid: string) {
+  openMenuPid.value = openMenuPid.value === pid ? null : pid;
+}
+function closeProjMenu() {
+  openMenuPid.value = null;
+}
+async function revealProject(pid: string) {
+  closeProjMenu();
+  try {
+    await app.openProjectDir(pid);
+  } catch (e) {
+    console.error("打开项目目录失败", e);
+  }
+}
+async function archiveProj(proj: { id: string; name: string }) {
+  closeProjMenu();
+  if (
+    confirm(
+      `归档项目「${proj.name}」?\n该项目会从列表移除（对话与文件保留，不会删除）。`
+    )
+  ) {
+    await app.archiveProject(proj.id);
+  }
+}
+
+// 对话按「几天的一个对话」分组：置顶 → 今天 → 昨天 → 7 天内 → 更早，
+// 各组内按最近活跃时间倒序（最新的在最上）。仿 Codex：项目名虚化、对话实体可标注。
+interface ConvGroup {
+  label: string;
+  items: Conversation[];
+}
+const DAY_MS = 86_400_000;
+// updatedAt 兼容秒/毫秒：小于 1e12 视为秒，统一换算成毫秒
+function toMs(t: number): number {
+  return t < 1e12 ? t * 1000 : t;
+}
+// 有效活跃时间(ms)：取后端 updatedAt 与本地「最近交互」打点的较大值。
+// 这样刚发送/正在运行的对话会冒泡到最上，并落入「今天」分组（仿 Codex）。
+function effMs(c: Conversation): number {
+  return Math.max(toMs(c.updatedAt), chat.activityAt(c.id));
+}
+// 该时间(ms)属于「今天起算的第几天前」（0=今天, 1=昨天, ...）
+function daysAgoMs(ms: number): number {
+  const now = new Date();
+  const startToday = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate()
+  ).getTime();
+  return Math.floor((startToday - ms) / DAY_MS);
+}
+function convGroups(projectId: string): ConvGroup[] {
+  const list = app.conversationsByProject[projectId] || [];
+  // 排序键：运行中的对话恒置最前，其余按有效活跃时间倒序（最新在上）。
+  const sortKey = (c: Conversation) =>
+    (chat.isSending(c.id) ? 1e15 : 0) + effMs(c);
+  const byTimeDesc = (a: Conversation, b: Conversation) => sortKey(b) - sortKey(a);
+  const pinned = list.filter((c) => app.isPinned(c.id)).sort(byTimeDesc);
+  const rest = list.filter((c) => !app.isPinned(c.id)).sort(byTimeDesc);
+
+  const today: Conversation[] = [];
+  const yest: Conversation[] = [];
+  const week: Conversation[] = [];
+  const older: Conversation[] = [];
+  for (const c of rest) {
+    // 运行中的对话强制归入「今天」，避免历史对话跑起来还留在「更早」
+    const d = chat.isSending(c.id) ? 0 : daysAgoMs(effMs(c));
+    if (d <= 0) today.push(c);
+    else if (d === 1) yest.push(c);
+    else if (d <= 7) week.push(c);
+    else older.push(c);
+  }
+
+  const groups: ConvGroup[] = [];
+  if (pinned.length) groups.push({ label: "置顶", items: pinned });
+  if (today.length) groups.push({ label: "今天", items: today });
+  if (yest.length) groups.push({ label: "昨天", items: yest });
+  if (week.length) groups.push({ label: "7 天内", items: week });
+  if (older.length) groups.push({ label: "更早", items: older });
+  return groups;
+}
+</script>
+
+<template>
+  <aside class="sb" :class="{ collapsed: app.sidebarCollapsed }">
+    <!-- Head：顶部留白，仅保留收起按钮（品牌 logo/文字已按要求移除） -->
+    <div class="sb-head">
+      <template v-if="!app.sidebarCollapsed">
+        <button
+          class="collapse-btn push-right"
+          title="收起侧栏"
+          @click="app.toggleSidebar()"
+        >
+          <PanelLeftClose :size="17" :stroke-width="1.7" />
+        </button>
+      </template>
+      <template v-else>
+        <button
+          class="collapse-btn rail"
+          title="展开侧栏"
+          @click="app.toggleSidebar()"
+        >
+          <PanelLeftOpen :size="17" :stroke-width="1.7" />
+        </button>
+      </template>
+    </div>
+
+    <!-- Nav -->
+    <nav class="nav">
+      <button
+        v-for="it in primaryNav"
+        :key="it.key"
+        class="nav-item"
+        :class="{ active: app.view === it.key }"
+        :title="it.label"
+        @click="pickNav(it.key)"
+      >
+        <span class="glyph-icon"
+          ><component :is="it.icon" :size="17" :stroke-width="1.6"
+        /></span>
+        <span v-if="!app.sidebarCollapsed" class="label">{{ it.label }}</span>
+      </button>
+
+      <!-- 更多：把 目录说明 / 环境 / MCP / 设置 收纳进来（仿豆包，顶层更清爽） -->
+      <button
+        class="nav-item"
+        :class="{ active: moreActive && !showMore, expanded: showMore }"
+        :title="'更多'"
+        @click="showMore = !showMore"
+      >
+        <span class="glyph-icon"
+          ><MoreHorizontal :size="17" :stroke-width="1.6"
+        /></span>
+        <span v-if="!app.sidebarCollapsed" class="label">更多</span>
+        <span v-if="!app.sidebarCollapsed" class="more-chev">{{
+          showMore ? "▾" : "▸"
+        }}</span>
+      </button>
+
+      <template v-if="showMore">
+        <button
+          v-for="it in moreNav"
+          :key="it.key"
+          class="nav-item sub"
+          :class="{ active: app.view === it.key }"
+          :title="it.label"
+          @click="pickNav(it.key)"
+        >
+          <span class="glyph-icon"
+            ><component :is="it.icon" :size="16" :stroke-width="1.6"
+          /></span>
+          <span v-if="!app.sidebarCollapsed" class="label">{{ it.label }}</span>
+        </button>
+      </template>
+    </nav>
+
+    <!-- SENTIO：母体的项目/对话树已移除（选股 App 无需对话管理）。对话后台引擎仍保留供盯盘/报告生成调用。 -->
+    <div class="nav-spacer"></div>
+
+    <div class="footer">
+      <ProviderDock :collapsed="app.sidebarCollapsed" />
+    </div>
+  </aside>
+</template>
+
+<style scoped>
+.sb {
+  /* 仿 Codex：比主区略深一档的暖米，无分割线靠色差分区；中部透一点点更亮的暖光 */
+  background: linear-gradient(
+    180deg,
+    var(--bg-side) 0%,
+    var(--bg-side) 32%,
+    var(--bg-side-mid) 50%,
+    var(--bg-side) 68%,
+    var(--bg-side) 100%
+  );
+  border-right: none;
+  display: flex;
+  flex-direction: column;
+  padding: 8px 8px 6px;
+  overflow: hidden;
+}
+.sb.collapsed {
+  padding: 8px 4px;
+}
+.nav-spacer {
+  flex: 1;
+}
+
+.sb-head {
+  display: flex;
+  align-items: center;
+  padding: 4px 4px 8px;
+  gap: 6px;
+}
+.collapse-btn.push-right {
+  margin-left: auto;
+}
+.collapse-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s;
+}
+.collapse-btn:hover {
+  background: var(--selection-bg);
+  color: var(--text);
+}
+.collapse-btn.rail {
+  margin: 0 auto;
+}
+
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 13px;
+  text-align: left;
+}
+.nav-item:hover {
+  background: var(--selection-bg);
+}
+.nav-item.active {
+  background: var(--selection-bg);
+  color: var(--text);
+  font-weight: 500;
+  border-left: 2px solid var(--ink);
+  padding-left: 8px;
+}
+.sb.collapsed .nav-item {
+  justify-content: center;
+  padding: 7px 0;
+}
+.sb.collapsed .nav-item.active {
+  border-left: none;
+  border-right: 2px solid var(--ink);
+}
+/* 「更多」展开态 + 折叠箭头 */
+.more-chev {
+  margin-left: auto;
+  font-size: 9px;
+  color: var(--dim);
+}
+.nav-item.expanded {
+  color: var(--text);
+}
+/* 「更多」里的次要项：缩进 + 字号略小，作为子级 */
+.nav-item.sub {
+  padding-left: 26px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.nav-item.sub .glyph,
+.nav-item.sub .glyph-icon {
+  width: 15px;
+}
+.nav-item.sub.active {
+  padding-left: 24px;
+}
+.sb.collapsed .nav-item.sub {
+  padding-left: 0;
+}
+.glyph {
+  display: inline-block;
+  width: 16px;
+  text-align: center;
+  color: var(--muted);
+  font-family: var(--serif);
+}
+.glyph-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  color: var(--muted);
+}
+.nav-item.active .glyph,
+.nav-item.active .glyph-icon {
+  color: var(--ink);
+}
+.label {
+  flex: 1;
+}
+
+.proj-section {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-soft);
+  overflow-y: auto;
+  flex: 1;
+}
+.proj-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px 6px;
+}
+.proj-title {
+  font-family: var(--serif);
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  color: var(--dim);
+}
+.ic-btn {
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+.ic-btn:hover {
+  background: var(--border);
+  color: var(--text);
+}
+.ic-btn.plus {
+  background: var(--ink);
+  color: #fff;
+  font-size: 11px;
+}
+.ic-btn.plus:hover {
+  background: var(--primary);
+}
+.ic-btn.mini {
+  opacity: 0;
+}
+/* 项目「…」更多操作按钮：幽灵态，hover 行才显形；菜单打开时常驻 */
+.ic-btn.dots {
+  color: var(--dim);
+}
+.ic-btn.dots:hover {
+  background: var(--border);
+  color: var(--text);
+}
+.ic-btn.dots.on {
+  opacity: 1;
+  background: var(--border);
+  color: var(--text);
+}
+
+.new-proj-row {
+  display: flex;
+  gap: 4px;
+  padding: 4px 10px 6px;
+}
+.new-proj-row input {
+  flex: 1;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  font-size: 12px;
+  background: var(--panel);
+}
+.new-proj-row input:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+.primary-mini {
+  padding: 2px 10px;
+  background: var(--ink);
+  color: #fff;
+  border: none;
+  border-radius: 3px;
+  font-size: 11px;
+}
+.primary-mini:hover {
+  background: var(--primary);
+}
+
+.proj-block {
+  margin-bottom: 4px;
+  position: relative;
+}
+/* 项目 = 文件夹（仿 Codex）：名称虚化、低调，弱化为「分组容器」 */
+.proj {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 10px;
+  font-size: 12.5px;
+  border-radius: 7px;
+  cursor: pointer;
+}
+.proj:hover {
+  background: var(--selection-bg);
+}
+.proj:hover .ic-btn.mini {
+  opacity: 1;
+}
+.proj.active,
+.proj.open {
+  background: transparent;
+}
+.proj .folder {
+  color: var(--dim);
+  flex-shrink: 0;
+}
+.proj.open .folder,
+.proj:hover .folder {
+  color: var(--muted);
+}
+.proj .name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  /* 虚化：低对比、字距拉开，作为分组标题而非主角 */
+  color: var(--muted);
+  font-weight: 500;
+  letter-spacing: 0.5px;
+}
+.proj:hover .name {
+  color: var(--text-2);
+}
+
+/* 项目操作下拉菜单 —— 软阴影 + 圆角，求精致高级感 */
+.proj-menu {
+  position: absolute;
+  z-index: 50;
+  top: 30px;
+  right: 6px;
+  min-width: 184px;
+  padding: 5px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.16), 0 2px 8px rgba(0, 0, 0, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  animation: pmIn 0.13s ease;
+}
+@keyframes pmIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.pm-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 7px 9px;
+  border: none;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 12.5px;
+  border-radius: 6px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.pm-item svg {
+  color: var(--muted);
+  flex-shrink: 0;
+}
+.pm-item:hover {
+  background: var(--selection-bg);
+  color: var(--text);
+}
+.pm-item:hover svg {
+  color: var(--text);
+}
+.pm-item.danger:hover {
+  color: var(--vermilion);
+}
+.pm-item.danger:hover svg {
+  color: var(--vermilion);
+}
+.pm-sep {
+  height: 1px;
+  margin: 3px 6px;
+  background: var(--border-soft);
+}
+.menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+}
+
+.day-label {
+  font-size: 10px;
+  color: var(--dim);
+  padding: 7px 10px 3px 30px;
+  font-family: var(--serif);
+  letter-spacing: 1.5px;
+}
+/* 对话 = 实体（仿 Codex）：更醒目、可点的主条目，颜色加深、字号略大 */
+.conv {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 10px 6px 30px;
+  font-size: 13px;
+  color: var(--text-2);
+  border-radius: 7px;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.conv:hover {
+  background: var(--selection-bg);
+  color: var(--text);
+}
+.conv:hover .ca {
+  opacity: 1;
+}
+.conv.active {
+  background: var(--selection-bg-hover);
+  color: var(--text);
+  font-weight: 600;
+}
+.cv-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--primary);
+  box-shadow: 0 0 0 2px var(--primary-soft);
+  flex-shrink: 0;
+  animation: cvDotIn 0.3s ease;
+}
+@keyframes cvDotIn {
+  from { transform: scale(0); }
+  to { transform: scale(1); }
+}
+.cv-pin {
+  flex-shrink: 0;
+  color: var(--gold);
+  transform: rotate(35deg);
+}
+/* 运行中转圈圈：细灰环 + 一段墨色弧旋转（仿 Codex 进度指示） */
+.cv-spin {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  border-top-color: var(--ink);
+  animation: cvSpin 0.7s linear infinite;
+}
+@keyframes cvSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.cv-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ca {
+  width: 16px;
+  height: 16px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  border-radius: 2px;
+  opacity: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+.ca:hover {
+  background: var(--border);
+  color: var(--text);
+}
+.ca.delete:hover {
+  color: var(--vermilion);
+}
+
+.empty-hint {
+  font-size: 11px;
+  color: var(--dim);
+  padding: 4px 10px 4px 26px;
+  font-style: italic;
+}
+
+.footer {
+  margin-top: auto;
+  padding-top: 6px;
+  border-top: 1px solid var(--border-soft);
+}
+.footer-text {
+  font-size: 10.5px;
+  color: var(--dim);
+  text-align: center;
+  font-family: var(--serif);
+  letter-spacing: 1.5px;
+  padding: 4px 0;
+}
+</style>

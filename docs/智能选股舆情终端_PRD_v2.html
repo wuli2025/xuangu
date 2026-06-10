@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SENTIO — PRD v2 · 选股雷达 + UI 设计</title>
+<style>
+  :root{
+    --bg:#070a12; --bg2:#0c1019; --card:rgba(255,255,255,.045); --card2:rgba(255,255,255,.07);
+    --line:rgba(255,255,255,.09); --line2:rgba(255,255,255,.14);
+    --txt:#f0f3fa; --sub:#8a93a8; --dim:#5c6378;
+    --up:#00e69a; --down:#ff5470; --gold:#ffcf6b;
+    --g1:#5b8cff; --g2:#00e0c6;
+    --grad:linear-gradient(120deg,#5b8cff,#00e0c6);
+    --grad-up:linear-gradient(120deg,#00e69a,#33e0ff);
+    --grad-gold:linear-gradient(120deg,#ffcf6b,#ff9d5c);
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"SF Pro SC","SF Pro Text","PingFang SC","Microsoft YaHei",sans-serif;
+    background:var(--bg);color:var(--txt);line-height:1.6;-webkit-font-smoothing:antialiased;letter-spacing:.01em;
+    background-image:radial-gradient(circle at 15% 5%,rgba(91,140,255,.12),transparent 40%),radial-gradient(circle at 85% 12%,rgba(0,224,198,.10),transparent 42%);
+    background-attachment:fixed;}
+  a{color:var(--g2);text-decoration:none;}
+  code{font-family:"SF Mono",Consolas,monospace;font-size:.85em;background:rgba(255,255,255,.06);padding:1px 6px;border-radius:5px;color:#a9d8ff;}
+  .mono{font-family:"SF Mono",Consolas,monospace;}
+  .wrap{max-width:920px;margin:0 auto;padding:0 28px;}
+
+  /* topnav */
+  .topnav{position:sticky;top:0;z-index:30;background:rgba(7,10,18,.72);backdrop-filter:saturate(160%) blur(18px);border-bottom:1px solid var(--line);}
+  .topnav .inner{max-width:1040px;margin:0 auto;padding:13px 28px;display:flex;gap:5px;overflow-x:auto;align-items:center;}
+  .topnav .logo{font-weight:700;font-size:15px;margin-right:14px;white-space:nowrap;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent;}
+  .topnav a{color:var(--sub);font-size:13px;padding:5px 11px;border-radius:980px;white-space:nowrap;transition:.2s;}
+  .topnav a:hover{color:var(--txt);background:var(--card2);}
+
+  /* hero */
+  .hero{text-align:center;padding:110px 28px 80px;position:relative;}
+  .hero .eyebrow{font-size:14px;font-weight:600;letter-spacing:.05em;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent;margin-bottom:16px;}
+  .hero h1{font-size:clamp(42px,7vw,78px);font-weight:800;letter-spacing:-.03em;line-height:1;margin:0 0 22px;}
+  .hero .lead{font-size:21px;color:var(--sub);max-width:600px;margin:0 auto;line-height:1.5;}
+  .hero .v{display:inline-block;margin-top:26px;font-size:13px;color:var(--gold);border:1px solid rgba(255,207,107,.3);border-radius:980px;padding:5px 16px;background:rgba(255,207,107,.06);}
+
+  section{padding:74px 0;border-top:1px solid var(--line);}
+  .sec-num{font-size:13px;font-weight:700;letter-spacing:.06em;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent;}
+  h2{font-size:clamp(28px,4.4vw,42px);font-weight:800;letter-spacing:-.025em;line-height:1.08;margin:10px 0 14px;}
+  .sec-lead{font-size:18px;color:var(--sub);max-width:640px;margin:0 0 30px;}
+  h3{font-size:20px;font-weight:600;margin:36px 0 10px;}
+  p{margin:12px 0;}
+  .baby{font-size:15px;color:var(--sub);font-style:italic;border-left:2px solid var(--line2);padding-left:16px;margin:20px 0;}
+
+  /* design tokens */
+  .swatches{display:flex;flex-wrap:wrap;gap:14px;margin:24px 0;}
+  .sw{flex:1;min-width:120px;border:1px solid var(--line);border-radius:16px;overflow:hidden;background:var(--card);}
+  .sw .chip{height:70px;}
+  .sw .lab{padding:10px 12px;font-size:12px;}
+  .sw .lab .nm{font-weight:600;} .sw .lab .hx{color:var(--dim);font-family:"SF Mono",monospace;font-size:11px;}
+  .principles{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px;margin:24px 0;}
+  .pr{border:1px solid var(--line);border-radius:18px;padding:22px;background:var(--card);}
+  .pr .t{font-size:16px;font-weight:600;margin-bottom:6px;}
+  .pr .d{font-size:14px;color:var(--sub);}
+
+  /* generic mockup frame */
+  .device{border:1px solid var(--line2);border-radius:22px;overflow:hidden;margin:28px 0;background:var(--bg2);box-shadow:0 30px 80px rgba(0,0,0,.5),0 0 0 1px rgba(91,140,255,.06);}
+  .device .bar{display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--line);background:rgba(255,255,255,.02);}
+  .device .bar .dot{width:11px;height:11px;border-radius:50%;background:#3a4154;}
+  .device .bar .ttl{margin-left:10px;font-size:12.5px;color:var(--sub);}
+  .device .bar .live{margin-left:auto;font-size:11px;color:var(--up);display:flex;align-items:center;gap:6px;}
+  .device .bar .live::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--up);box-shadow:0 0 8px var(--up);}
+  .screen{padding:22px;}
+  .caption{text-align:center;font-size:13px;color:var(--dim);margin:-12px 0 30px;}
+
+  /* dashboard mock */
+  .dash-top{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px;}
+  .gauge{flex:1;min-width:200px;border:1px solid var(--line);border-radius:18px;padding:20px;background:var(--card);position:relative;overflow:hidden;}
+  .gauge::after{content:"";position:absolute;right:-30px;top:-30px;width:120px;height:120px;border-radius:50%;background:var(--grad);opacity:.12;filter:blur(20px);}
+  .gauge .k{font-size:12px;color:var(--sub);}
+  .gauge .big{font-size:54px;font-weight:800;letter-spacing:-.03em;line-height:1;margin:6px 0;background:var(--grad-gold);-webkit-background-clip:text;background-clip:text;color:transparent;}
+  .gauge .tag{font-size:12px;color:var(--down);font-weight:600;}
+  .stat{flex:1;min-width:130px;border:1px solid var(--line);border-radius:18px;padding:18px;background:var(--card);}
+  .stat .k{font-size:12px;color:var(--sub);}
+  .stat .v{font-size:26px;font-weight:700;margin-top:6px;}
+  .stat .v.up{color:var(--up);} .stat .v.down{color:var(--down);}
+  .stat .sub{font-size:11px;color:var(--dim);margin-top:2px;}
+
+  .hotlist{border:1px solid var(--line);border-radius:18px;overflow:hidden;background:var(--card);}
+  .hot-h{padding:12px 18px;font-size:13px;color:var(--sub);border-bottom:1px solid var(--line);display:flex;justify-content:space-between;}
+  .hrow{display:flex;align-items:center;gap:12px;padding:13px 18px;border-bottom:1px solid var(--line);font-size:14px;}
+  .hrow:last-child{border-bottom:none;}
+  .hrow .rank{width:22px;height:22px;border-radius:7px;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--gold);flex-shrink:0;}
+  .hrow .nm{flex:1;font-weight:600;}
+  .hrow .nm small{color:var(--dim);font-weight:400;margin-left:6px;}
+  .hrow .heat{font-size:12px;color:var(--sub);}
+  .hrow .chg{font-weight:700;font-family:"SF Mono",monospace;width:74px;text-align:right;}
+  .hrow .chg.up{color:var(--up);} .hrow .chg.down{color:var(--down);}
+  .bull{font-size:11px;padding:2px 8px;border-radius:980px;}
+  .bull.hot{background:rgba(255,84,112,.14);color:var(--down);}
+  .bull.cold{background:rgba(0,230,154,.14);color:var(--up);}
+
+  /* scope selector mock */
+  .scope{border:1px solid var(--line);border-radius:18px;padding:20px;background:var(--card);margin-bottom:18px;}
+  .scope .lab{font-size:12px;color:var(--sub);margin-bottom:10px;}
+  .chips{display:flex;flex-wrap:wrap;gap:9px;margin-bottom:14px;}
+  .ch{font-size:13px;padding:7px 15px;border-radius:980px;border:1px solid var(--line2);color:var(--sub);background:transparent;cursor:default;}
+  .ch.on{border-color:transparent;background:var(--grad);color:#05121f;font-weight:600;box-shadow:0 4px 16px rgba(0,224,198,.25);}
+  .scope .inp{display:flex;align-items:center;gap:10px;border:1px solid var(--line2);border-radius:12px;padding:11px 15px;color:var(--dim);font-size:14px;}
+  .scope .inp .cur{color:var(--txt);} .scope .inp .ph{color:var(--dim);}
+  .scope .go{margin-left:auto;background:var(--grad);color:#05121f;font-weight:700;border-radius:980px;padding:7px 18px;font-size:13px;}
+
+  /* recommendation card */
+  .recs{display:grid;gap:12px;}
+  .rec{display:flex;align-items:center;gap:16px;border:1px solid var(--line);border-radius:16px;padding:16px 18px;background:var(--card);position:relative;overflow:hidden;}
+  .rec.top{border-color:rgba(255,207,107,.35);background:linear-gradient(100deg,rgba(255,207,107,.06),transparent 60%);}
+  .rec .badge{flex-shrink:0;width:42px;height:42px;border-radius:13px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:18px;background:var(--card2);color:var(--gold);}
+  .rec.top .badge{background:var(--grad-gold);color:#3a2a00;}
+  .rec .mid{flex:1;min-width:0;}
+  .rec .nm{font-size:16px;font-weight:700;}
+  .rec .nm small{color:var(--dim);font-weight:400;margin-left:6px;font-size:12px;}
+  .rec .why{font-size:13px;color:var(--sub);margin-top:3px;}
+  .rec .right{text-align:right;flex-shrink:0;}
+  .rec .score{font-size:24px;font-weight:800;background:var(--grad-up);-webkit-background-clip:text;background-clip:text;color:transparent;line-height:1;}
+  .rec .score small{font-size:11px;color:var(--dim);font-weight:400;}
+  .rec .meta{font-size:11px;color:var(--dim);margin-top:4px;}
+  .rec .sector{font-size:10.5px;padding:2px 8px;border-radius:980px;background:var(--card2);color:var(--sub);margin-top:5px;display:inline-block;}
+
+  /* report card mock */
+  .report{border:1px solid var(--line);border-radius:18px;overflow:hidden;background:var(--card);}
+  .rep-head{padding:18px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:14px;}
+  .rep-head .name{font-size:18px;font-weight:700;flex:1;}
+  .rep-head .name small{color:var(--dim);font-weight:400;font-size:13px;margin-left:6px;}
+  .verdict{font-size:13px;font-weight:700;padding:6px 14px;border-radius:980px;}
+  .verdict.hold{background:rgba(255,207,107,.15);color:var(--gold);}
+  .rep-body{display:grid;grid-template-columns:150px 1fr;gap:0;}
+  .ring-wrap{padding:22px;border-right:1px solid var(--line);text-align:center;}
+  .ring{width:104px;height:104px;border-radius:50%;margin:0 auto;display:flex;align-items:center;justify-content:center;
+    background:conic-gradient(var(--down) 0 83%,rgba(255,255,255,.08) 83% 100%);position:relative;}
+  .ring::before{content:"";position:absolute;inset:11px;border-radius:50%;background:var(--bg2);}
+  .ring .num{position:relative;font-size:30px;font-weight:800;color:var(--down);}
+  .ring-wrap .lab{font-size:12px;color:var(--sub);margin-top:10px;}
+  .ring-wrap .sig{font-size:12px;color:var(--down);font-weight:600;margin-top:3px;}
+  .advice{padding:20px;}
+  .advice .row{display:flex;gap:12px;padding:9px 0;border-bottom:1px solid var(--line);font-size:14px;}
+  .advice .row:last-child{border-bottom:none;}
+  .advice .row .k{width:72px;color:var(--sub);flex-shrink:0;}
+  .advice .row .vv{font-weight:600;}
+  .advice .row .vv .mono{color:var(--up);}
+
+  table{border-collapse:collapse;width:100%;font-size:14.5px;margin:20px 0;}
+  th,td{padding:13px 16px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line);}
+  th{font-weight:600;font-size:12.5px;color:var(--dim);}
+  .tag{display:inline-block;font-size:12px;font-weight:600;padding:2px 9px;border-radius:980px;}
+  .t-keep{background:rgba(0,230,154,.14);color:var(--up);} .t-new{background:rgba(91,140,255,.16);color:#8fb4ff;}
+  .t-mod{background:rgba(255,207,107,.14);color:var(--gold);}
+
+  .callout{border-radius:16px;padding:20px 26px;margin:22px 0;font-size:15px;border:1px solid var(--line);background:var(--card);}
+  .callout.key{box-shadow:inset 3px 0 0 var(--g2);} .callout.warn{box-shadow:inset 3px 0 0 var(--gold);}
+  .callout b{color:#fff;}
+
+  footer{padding:60px 28px 80px;text-align:center;color:var(--dim);font-size:13px;border-top:1px solid var(--line);}
+  footer p{margin:6px 0;}
+  @media(max-width:640px){.hero{padding:72px 22px 56px;}.rep-body{grid-template-columns:1fr;}.ring-wrap{border-right:none;border-bottom:1px solid var(--line);}}
+</style>
+</head>
+<body>
+
+<div class="topnav"><div class="inner">
+  <span class="logo">◇ SENTIO</span>
+  <a href="#design">设计语言</a>
+  <a href="#dash">舆情看板</a>
+  <a href="#radar">选股雷达</a>
+  <a href="#report">个股报告</a>
+  <a href="#scope">监控范围</a>
+  <a href="#delta">v2 变更</a>
+</div></div>
+
+<div class="hero">
+  <div class="eyebrow">AI 智能选股舆情终端 · v2</div>
+  <h1>看一眼，<br>就知道钱在哪。</h1>
+  <p class="lead">不止盯你的自选股。圈定金融、新能源、电池、AI 等板块，<br>让 AI 全网扫情绪，把机会排好序端上来。</p>
+  <div class="v">v2.0 · 新增「选股雷达」+ UI 设计稿</div>
+</div>
+
+<div class="wrap">
+
+<!-- 设计语言 -->
+<section id="design">
+  <div class="sec-num">A · 设计语言</div>
+  <h2>科技的骨，<br>苹果的呼吸，钱的颜色。</h2>
+  <p class="sec-lead">三股气质合一：Web3 的深空玻璃质感、Apple 的极简留白、以及让人一眼有"赚钱预期"的涨绿与金光。</p>
+
+  <div class="principles">
+    <div class="pr"><div class="t">深空底 + 玻璃卡</div><div class="d">近黑底色配半透明玻璃卡片、细描边、柔和景深辉光。专业、冷静、像一台真正的交易终端。</div></div>
+    <div class="pr"><div class="t">极简留白</div><div class="d">一屏一重点，大字距标题，去装饰。信息密度高但不拥挤——苹果式的"少即是多"。</div></div>
+    <div class="pr"><div class="t">钱的颜色</div><div class="d">涨用发光翡翠绿、机会用流光金。关键数字够大够亮，一眼锁定"哪里有肉"。</div></div>
+    <div class="pr"><div class="t">克制的霓虹</div><div class="d">渐变只点在 Logo、关键数字、CTA 上，绝不铺满。高级感来自克制，不是堆光效。</div></div>
+  </div>
+
+  <h3>色板</h3>
+  <div class="swatches">
+    <div class="sw"><div class="chip" style="background:#070a12"></div><div class="lab"><div class="nm">深空底</div><div class="hx">#070A12</div></div></div>
+    <div class="sw"><div class="chip" style="background:linear-gradient(120deg,#5b8cff,#00e0c6)"></div><div class="lab"><div class="nm">科技渐变</div><div class="hx">5B8CFF→00E0C6</div></div></div>
+    <div class="sw"><div class="chip" style="background:#00e69a"></div><div class="lab"><div class="nm">涨·翡翠绿</div><div class="hx">#00E69A</div></div></div>
+    <div class="sw"><div class="chip" style="background:linear-gradient(120deg,#ffcf6b,#ff9d5c)"></div><div class="lab"><div class="nm">机会·流光金</div><div class="hx">#FFCF6B</div></div></div>
+    <div class="sw"><div class="chip" style="background:#ff5470"></div><div class="lab"><div class="nm">跌/预警</div><div class="hx">#FF5470</div></div></div>
+  </div>
+  <p class="baby">字体走 SF Pro / 苹方，正文细、数字重；圆角统一 16–22px；动效只做淡入与微悬浮，绝不花哨。</p>
+</section>
+
+<!-- 舆情看板 -->
+<section id="dash">
+  <div class="sec-num">B · 界面稿 01</div>
+  <h2>舆情看板</h2>
+  <p class="sec-lead">打开第一眼：全市场情绪温度、最热标的、自选股冷热。红绿一目了然。</p>
+
+  <div class="device">
+    <div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="ttl">SENTIO · 舆情看板</span><span class="live">实时</span></div>
+    <div class="screen">
+      <div class="dash-top">
+        <div class="gauge"><div class="k">市场情绪温度</div><div class="big">83</div><div class="tag">🔴 过热 · 近 5 日 +21，警惕回撤</div></div>
+        <div class="stat"><div class="k">北向资金</div><div class="v up">+38.6亿</div><div class="sub">聪明钱净流入</div></div>
+        <div class="stat"><div class="k">情绪反转预警</div><div class="v down">7 只</div><div class="sub">散户一致看多</div></div>
+      </div>
+      <div class="hotlist">
+        <div class="hot-h"><span>🔥 全网热度飙升榜</span><span>情绪</span></div>
+        <div class="hrow"><span class="rank">1</span><span class="nm">宁德时代<small>电池</small></span><span class="bull hot">过热</span><span class="chg up">+5.2%</span></div>
+        <div class="hrow"><span class="rank">2</span><span class="nm">寒武纪<small>AI算力</small></span><span class="bull hot">过热</span><span class="chg up">+8.1%</span></div>
+        <div class="hrow"><span class="rank">3</span><span class="nm">阳光电源<small>新能源</small></span><span class="bull cold">回暖</span><span class="chg up">+2.4%</span></div>
+        <div class="hrow"><span class="rank">4</span><span class="nm">招商银行<small>金融</small></span><span class="bull cold">冰点</span><span class="chg down">-0.6%</span></div>
+      </div>
+    </div>
+  </div>
+  <p class="caption">↑ 大数字发光、涨绿跌红、过热/冰点一眼分辨。看板不让你打字，点任意一行即可「生成深度报告」。</p>
+</section>
+
+<!-- 选股雷达 -->
+<section id="radar">
+  <div class="sec-num">C · 界面稿 02 · v2 核心新增</div>
+  <h2>选股雷达</h2>
+  <p class="sec-lead">不再局限于自选股。圈定范围 → AI 扫全网情绪 → 把机会排好序推给你。</p>
+
+  <div class="device">
+    <div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="ttl">SENTIO · 选股雷达</span><span class="live">扫描中</span></div>
+    <div class="screen">
+      <div class="scope">
+        <div class="lab">监控范围 · 板块可多选</div>
+        <div class="chips">
+          <span class="ch on">金融</span><span class="ch on">新能源</span><span class="ch on">电池</span><span class="ch on">AI</span>
+          <span class="ch">半导体</span><span class="ch">医药</span><span class="ch">消费</span><span class="ch">军工</span><span class="ch">机器人</span><span class="ch">+ 自定义</span>
+        </div>
+        <div class="inp"><span class="ph">＋ 手动输入代码/名称：</span><span class="cur">600519，AAPL，BTC…</span><span class="go">扫描机会 →</span></div>
+      </div>
+
+      <div class="recs">
+        <div class="rec top">
+          <div class="badge">1</div>
+          <div class="mid"><div class="nm">阳光电源 <small>300274 · 新能源</small></div><div class="why">情绪低位回暖 + 北向连续 3 日加仓，机构席位上榜——错杀修复机会</div><span class="sector">符合：趋势派 突破信号</span></div>
+          <div class="right"><div class="score">91<small>/100</small></div><div class="meta">情绪 32 · 上行</div></div>
+        </div>
+        <div class="rec">
+          <div class="badge">2</div>
+          <div class="mid"><div class="nm">比亚迪 <small>002594 · 电池</small></div><div class="why">基本面稳、情绪温和未过热，PEG 合理——成长派偏好</div><span class="sector">符合：成长派 PEG≤1</span></div>
+          <div class="right"><div class="score">86<small>/100</small></div><div class="meta">情绪 58 · 中性</div></div>
+        </div>
+        <div class="rec">
+          <div class="badge">3</div>
+          <div class="mid"><div class="nm">招商银行 <small>600036 · 金融</small></div><div class="why">情绪冰点、股息率高、被市场遗忘——价值派安全边际充足</div><span class="sector">符合：价值派 低估</span></div>
+          <div class="right"><div class="score">79<small>/100</small></div><div class="meta">情绪 18 · 冰点</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="caption">↑ 多选板块 + 手动输入 = 自定义监控宇宙。AI 综合情绪/资金/动量打分排序，金色置顶 = 当前最优机会。</p>
+
+  <h3>它怎么挑出来的</h3>
+  <table>
+    <tr><th>步骤</th><th>做什么</th></tr>
+    <tr><td>① 圈范围</td><td>自选池 + 手动输入 + 板块多选（金融/新能源/电池/AI/半导体/医药/消费/军工/机器人/自定义），组成本次扫描宇宙</td></tr>
+    <tr><td>② 全网扫情绪</td><td>对范围内每只票拉舆情+资金+动量，API 模型打情绪分</td></tr>
+    <tr><td>③ 综合排序</td><td>推荐分 = 情绪机会度 + 资金面 + 门派契合度；<b>过热的降权或标"警惕"，低位回暖的加权标"机会"</b></td></tr>
+    <tr><td>④ 给理由</td><td>每只推荐配一句大白话逻辑 + 所属门派，点开即出完整报告</td></tr>
+  </table>
+  <div class="callout key"><b>反向逻辑内建：</b>雷达不是"谁涨得猛推谁"——散户一致狂热的反而降权警惕，被冷落但资金悄悄回流的才是金色机会。这是"一眼赚钱感"背后的真功夫。</div>
+</section>
+
+<!-- 个股报告 -->
+<section id="report">
+  <div class="sec-num">D · 界面稿 03</div>
+  <h2>个股报告</h2>
+  <p class="sec-lead">点任意标的，得到一张带结论、情绪、买卖区间、止损线的报告卡。</p>
+
+  <div class="device">
+    <div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="ttl">SENTIO · 个股报告</span><span class="live">已生成</span></div>
+    <div class="screen">
+      <div class="report">
+        <div class="rep-head">
+          <div class="name">贵州茅台 <small>600519 · 趋势技术派</small></div>
+          <span class="verdict hold">观望偏多 · 信心 62%</span>
+        </div>
+        <div class="rep-body">
+          <div class="ring-wrap">
+            <div class="ring"><span class="num">83</span></div>
+            <div class="lab">情绪温度</div>
+            <div class="sig">🔴 过热预警</div>
+          </div>
+          <div class="advice">
+            <div class="row"><span class="k">操作</span><span class="vv">不追高，回踩关键均线再考虑</span></div>
+            <div class="row"><span class="k">仓位</span><span class="vv">单笔风险 <span class="mono">≤ 2%</span></span></div>
+            <div class="row"><span class="k">止损</span><span class="vv">买点下方 <span class="mono">7–8%</span>（欧奈尔铁律）</span></div>
+            <div class="row"><span class="k">止盈</span><span class="vv">奔 <span class="mono">20–25%</span>，移动止盈</span></div>
+            <div class="row"><span class="k">反向提示</span><span class="vv" style="color:var(--sub);font-weight:400;font-size:13px;">UP主与弹幕一致看多 + 关注度飙升，历史上后续多跑输</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="caption">↑ 左侧情绪环（红=过热）、右侧可执行建议。底部一行免责：研究参考，非投资建议。</p>
+</section>
+
+<!-- 监控范围说明 -->
+<section id="scope">
+  <div class="sec-num">E · 功能规格</div>
+  <h2>监控范围 = 你的猎场</h2>
+  <p class="sec-lead">三种方式自由组合，决定 AI 在多大的池子里替你找机会。</p>
+  <table>
+    <tr><th>方式</th><th>说明</th></tr>
+    <tr><td>自选股池</td><td>你长期关注的票，常驻监控与预警</td></tr>
+    <tr><td>手动输入</td><td>临时丢进几个代码/名称（A股 / 美股 / 加密），即时纳入扫描</td></tr>
+    <tr><td>板块多选</td><td>金融 · 新能源 · 电池 · AI · 半导体 · 医药 · 消费 · 军工 · 机器人 · 算力…可多选，也可自定义新板块</td></tr>
+  </table>
+  <p class="baby">范围存为"扫描预设"，可一键复用，也可挂到自动化里定时扫（每天收盘后自动出一份"今日板块机会榜"推送给你）。</p>
+</section>
+
+<!-- v2 变更 -->
+<section id="delta">
+  <div class="sec-num">F · v2 相对 v1 的变更</div>
+  <h2>这版改了什么</h2>
+  <table>
+    <tr><th>项目</th><th>变更</th></tr>
+    <tr><td>选股雷达</td><td><span class="tag t-new">新增</span> 范围自定义（自选+输入+板块多选）+ AI 排序推荐，不再局限自选股</td></tr>
+    <tr><td>设计语言</td><td><span class="tag t-new">新增</span> 明确定义：Web3 科技 × Apple 简洁 × 赚钱感，含色板与原则</td></tr>
+    <tr><td>UI 设计稿</td><td><span class="tag t-new">新增</span> 看板 / 雷达 / 报告 三屏可视化界面稿直接画进 PRD</td></tr>
+    <tr><td>自动化</td><td><span class="tag t-mod">扩展</span> 新增"板块机会榜"定时扫描流程</td></tr>
+    <tr><td>三引擎复用 · API模型 · B站增强</td><td><span class="tag t-keep">不变</span> 沿用 v1 架构</td></tr>
+  </table>
+  <div class="callout warn"><b>免责：</b>SENTIO 所有输出仅为信息分析与研究参考，不构成投资建议。情绪是概率性反向信号，会出错；股票/加密波动极大、可能本金全损。请独立判断、控制仓位、风险自负。</div>
+</section>
+
+</div>
+
+<footer>
+  <p>◇ SENTIO · 产品需求文档 v2.0 · 2026-06-09</p>
+  <p>新增选股雷达 + UI 设计稿 · Web3 科技 × Apple 简洁 × 赚钱感 · 基于 polaris-app 改造</p>
+  <p style="color:#41475a;margin-top:14px;">研究参考工具，不构成投资建议。</p>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,15 @@
+{
+  "_comment": "默认扫描宇宙（自选 + 板块代表股）。代码为6位A股代码，market: sh/sz/bj。可自由增删。",
+  "stocks": [
+    {"code": "600519", "name": "贵州茅台", "market": "sh", "sector": "消费"},
+    {"code": "300750", "name": "宁德时代", "market": "sz", "sector": "电池"},
+    {"code": "688256", "name": "寒武纪", "market": "sh", "sector": "AI"},
+    {"code": "300274", "name": "阳光电源", "market": "sz", "sector": "新能源"},
+    {"code": "002594", "name": "比亚迪", "market": "sz", "sector": "电池"},
+    {"code": "600036", "name": "招商银行", "market": "sh", "sector": "金融"},
+    {"code": "688981", "name": "中芯国际", "market": "sh", "sector": "半导体"},
+    {"code": "601012", "name": "隆基绿能", "market": "sh", "sector": "新能源"},
+    {"code": "600276", "name": "恒瑞医药", "market": "sh", "sector": "医药"},
+    {"code": "601899", "name": "紫金矿业", "market": "sh", "sector": "金融"}
+  ]
+}

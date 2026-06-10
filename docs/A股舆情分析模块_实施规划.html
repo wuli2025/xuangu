@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>A股舆情情绪分析模块 · 实施规划</title>
+<style>
+  :root{
+    --bg:#0d1117;--bg2:#161b22;--card:#1c2330;--line:#2a3344;
+    --txt:#e6edf3;--sub:#9aa7b8;--accent:#4ea1ff;--green:#3fb950;
+    --warn:#f0883e;--danger:#f85149;--gold:#e3b341;--purple:#bc8cff;--cyan:#56d4dd;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{margin:0;font-family:"Segoe UI","Microsoft YaHei","PingFang SC",system-ui,sans-serif;
+    background:linear-gradient(180deg,#0a0e14,#0d1117 30%);color:var(--txt);line-height:1.75;}
+  a{color:var(--accent);text-decoration:none;} a:hover{text-decoration:underline;}
+  code{background:#222b3a;padding:2px 7px;border-radius:5px;font-size:.88em;color:#ffd9a0;font-family:Consolas,monospace;}
+  pre{background:#0c1119;border:1px solid var(--line);border-radius:10px;padding:16px;overflow-x:auto;font-size:13px;color:#cfe;line-height:1.6;}
+  .wrap{display:flex;max-width:1380px;margin:0 auto;}
+  nav{position:sticky;top:0;align-self:flex-start;width:240px;height:100vh;overflow-y:auto;
+    padding:24px 14px;border-right:1px solid var(--line);background:rgba(13,17,23,.7);backdrop-filter:blur(6px);}
+  nav .logo{font-size:19px;font-weight:800;margin-bottom:2px;} nav .logo span{color:var(--accent);}
+  nav .sm{font-size:12px;color:var(--sub);margin-bottom:14px;}
+  nav a{display:block;color:var(--sub);padding:6px 10px;border-radius:7px;font-size:13.5px;margin:2px 0;}
+  nav a:hover{background:var(--bg2);color:var(--txt);text-decoration:none;}
+  main{flex:1;padding:38px 46px;max-width:1040px;min-width:0;}
+  .hero{background:radial-gradient(circle at 18% 0%,rgba(86,212,221,.16),transparent 60%),var(--card);
+    border:1px solid var(--line);border-radius:20px;padding:36px;margin-bottom:30px;}
+  .hero h1{font-size:31px;margin:0 0 10px;} .hero p{color:var(--sub);margin:6px 0;}
+  .pill{display:inline-block;background:#21303f;color:#cfe6ff;border:1px solid #2f4a63;border-radius:999px;padding:4px 13px;font-size:12.5px;margin:4px 6px 0 0;}
+  section{margin:48px 0;scroll-margin-top:18px;}
+  h2{font-size:25px;border-left:5px solid var(--cyan);padding-left:13px;margin-bottom:4px;}
+  h2 .sub{display:block;font-size:13.5px;color:var(--sub);font-weight:400;margin-top:4px;}
+  h3{font-size:19px;color:#cfe1f5;margin-top:30px;}
+  h4{font-size:15.5px;color:var(--gold);margin:16px 0 6px;}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px 22px;margin:14px 0;}
+  .tablewrap{overflow-x:auto;border-radius:12px;border:1px solid var(--line);margin:14px 0;}
+  table{border-collapse:collapse;width:100%;font-size:13px;min-width:620px;}
+  th,td{padding:10px 12px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top;}
+  th{background:#1a2230;color:#cfe1f5;font-weight:600;}
+  tr:hover td{background:#19202c;}
+  .note{border-radius:10px;padding:13px 17px;margin:14px 0;border-left:4px solid;}
+  .note.tip{background:rgba(63,185,80,.08);border-color:var(--green);}
+  .note.warn{background:rgba(240,136,62,.08);border-color:var(--warn);}
+  .note.danger{background:rgba(248,81,73,.1);border-color:var(--danger);}
+  .note.info{background:rgba(78,161,255,.08);border-color:var(--accent);}
+  .baby{background:rgba(188,140,255,.08);border:1px dashed #6b4e9e;border-radius:10px;padding:11px 15px;margin:11px 0;}
+  .baby::before{content:"🍼 大白话：";color:var(--purple);font-weight:700;}
+  .badge{display:inline-block;font-size:11px;padding:2px 8px;border-radius:6px;font-weight:600;}
+  .b-best{background:#1f3a2a;color:#7fe0a0;} .b-free{background:#1f3a3a;color:#7fe0d8;}
+  .b-opt{background:#3a352a;color:#e8d98a;} .b-risk{background:#3a2a2a;color:#f0a0a0;}
+  .layer{border:1px solid var(--line);border-radius:12px;padding:16px 20px;margin:12px 0;background:var(--card);}
+  .layer .ln{font-size:12px;color:var(--cyan);font-weight:700;letter-spacing:1px;}
+  .road{border-left:3px solid var(--accent);padding:4px 0 4px 22px;margin:0 0 0 8px;}
+  .road .step{position:relative;margin:18px 0;}
+  .road .step::before{content:"";position:absolute;left:-29px;top:5px;width:13px;height:13px;border-radius:50%;background:var(--accent);border:3px solid var(--bg);}
+  .road .step .w{font-size:12px;color:var(--gold);font-weight:700;}
+  .formula{background:#0c1119;border:1px solid #2f4a63;border-radius:12px;padding:18px;margin:14px 0;font-family:Consolas,monospace;font-size:13.5px;color:#cfe;}
+  footer{border-top:1px solid var(--line);margin-top:50px;padding:26px 0;color:var(--sub);font-size:12.5px;}
+  @media(max-width:860px){nav{display:none;}main{padding:18px;}.hero h1{font-size:24px;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav>
+  <div class="logo">A股舆情<span>·</span>规划</div>
+  <div class="sm">实施蓝图 v1</div>
+  <a href="#idea">0 · 核心设计思路</a>
+  <a href="#layers">1 · 数据源三层架构</a>
+  <a href="#tools">2 · 工具最终选型</a>
+  <a href="#index">3 · 情绪温度计设计</a>
+  <a href="#arch">4 · 技术架构/数据流</a>
+  <a href="#road">5 · 分阶段路线图</a>
+  <a href="#output">6 · 输出与主系统对接</a>
+  <a href="#risk">⚠ 合规与风险</a>
+</nav>
+
+<main>
+<div class="hero" id="idea">
+  <h1>📡 A股舆情情绪分析模块<br>实施规划</h1>
+  <p>给「智能选股」系统的舆情板块，一份能直接照着干的落地蓝图。所有工具、接口、模型均已联网核实（2026）。</p>
+  <div>
+    <span class="pill">合规优先</span>
+    <span class="pill">行为代理打底</span>
+    <span class="pill">文本情感增强</span>
+    <span class="pill">反向指标逻辑</span>
+    <span class="pill">一周可跑 MVP</span>
+  </div>
+</div>
+
+<!-- 0 思路 -->
+<section>
+<h2>0 · 核心设计思路（先定调，这决定了一切）<span class="sub">为什么不是"上来就爬股吧"</span></h2>
+<div class="note danger"><b>关键判断：A股舆情不要以"爬虫+文本情感"为主力，要以"合规行为代理指标"为主力。</b><br>
+原因有三：① 爬雪球/东财股吧在 2025 修订的《反不正当竞争法》下有真实民事风险，且爬虫接口三天两头失效、维护成本高；② 散户"行为"（人气榜飙升、关注指数、北向资金）比散户"嘴上说的"更真实、更难造假；③ akshare 已经把东财/雪球/百度的热度数据做成了<b>免费、合规、结构化</b>的接口，直接拿来即可。</div>
+
+<div class="card">
+<b>三条设计原则：</b>
+<div class="baby">
+① <b>能用官方聚合接口，就不爬虫</b> —— akshare 的热度/资金接口是主力，爬虫只在"必须要原文"时才上。<br>
+② <b>情绪是反向指标</b> —— 散户人气爆棚、人人喊涨 = 见顶预警，不是买入理由。模块要输出"过热/过冷"而不是简单"利好/利空"。<br>
+③ <b>先量化热度，再做文本情感</b> —— 热度指标 1 天就能搭好；文本情感（finbert-tone-chinese）是第二阶段的精度增强，不挡 MVP。
+</div>
+</div>
+</section>
+
+<!-- 1 数据源三层 -->
+<section id="layers">
+<h2>1 · 数据源三层架构<span class="sub">从"最该用"到"必要时才用"，全部给出真实接口名</span></h2>
+
+<div class="layer">
+<div class="ln">第①层 · 行为型情绪代理（主力 · akshare · 零爬虫零风险）</div>
+<div class="tablewrap"><table>
+<tr><th>接口函数（akshare）</th><th>数据源</th><th>返回什么</th><th>情绪含义</th></tr>
+<tr><td><code>stock_comment_em()</code></td><td>东财·千股千评</td><td>关注指数、排名及变化（基于股吧浏览+自选）</td><td><b>官方散户关注度</b>，最直接的情绪热度代理</td></tr>
+<tr><td><code>stock_hot_rank_em()</code></td><td>东财·人气榜</td><td>实时人气排名、最新价</td><td>散户关注度排名</td></tr>
+<tr><td><code>stock_hot_up_em()</code></td><td>东财·飙升榜</td><td>排名飙升的个股</td><td><b>情绪突变信号</b>（突然被盯上）</td></tr>
+<tr><td><code>stock_hot_keyword_em()</code></td><td>东财</td><td>个股关联概念、热度值</td><td>题材炒作主线</td></tr>
+<tr><td><code>stock_hot_follow_xq()</code></td><td>雪球</td><td>关注排行</td><td>雪球关注热度</td></tr>
+<tr><td><code>stock_hot_tweet_xq()</code></td><td>雪球</td><td>讨论排行</td><td><b>雪球发帖讨论量</b>（最贴近舆情）</td></tr>
+<tr><td><code>stock_hot_search_baidu()</code></td><td>百度</td><td>股票热搜</td><td>全网搜索热度（FOMO信号）</td></tr>
+</table></div>
+</div>
+
+<div class="layer">
+<div class="ln">第②层 · 资金型情绪代理（"聪明钱"态度 · akshare · 合规）</div>
+<div class="tablewrap"><table>
+<tr><th>接口函数</th><th>返回什么</th><th>情绪含义</th></tr>
+<tr><td><code>stock_hsgt_*</code>（北向/沪深港通系列）</td><td>北向净流入、持股、余额</td><td><b>外资"聪明钱"流向</b>，最重要的情绪代理</td></tr>
+<tr><td><code>stock_individual_fund_flow()</code></td><td>主力/超大单/大单净流入</td><td>主力资金态度</td></tr>
+<tr><td><code>stock_lhb_*</code>（龙虎榜系列）</td><td>买卖席位</td><td>游资 vs 机构博弈情绪</td></tr>
+</table></div>
+<div class="baby">第①②层加起来，已经能做出一个完全合规、不写一行爬虫的"情绪温度计"。建议 MVP 只用这两层。</div>
+</div>
+
+<div class="layer">
+<div class="ln">第③层 · 文本原文（精度增强 · 必要时才爬 · 有维护成本）</div>
+<div class="tablewrap"><table>
+<tr><th>平台</th><th>工具</th><th>说明</th></tr>
+<tr><td>微博</td><td><code>MediaCrawler</code> <span class="badge b-best">支持好</span></td><td>30k★，Playwright 驱动，免 JS 逆向，支持二级评论</td></tr>
+<tr><td>东财股吧</td><td><code>zcyeee/EastMoney_Crawler</code></td><td>专爬股吧帖子+评论，带代理池（接口可能需维护）</td></tr>
+<tr><td>雪球</td><td><code>decaywood/XueQiuSuperSpider</code> <span class="badge b-risk">偏旧</span></td><td>MediaCrawler 不支持雪球，此项目较老需适配</td></tr>
+<tr><td>抖音/B站</td><td><code>MediaCrawler</code></td><td>财经视频评论、弹幕（B站弹幕是独特情绪资产）</td></tr>
+</table></div>
+<div class="note warn"><b>注意：</b>MediaCrawler <b>不支持雪球和东财股吧</b>。这两个要单独项目，且较旧、接口易失效——所以能用第①层 akshare 雪球/股吧热度接口替代的，就别爬。</div>
+</div>
+</section>
+
+<!-- 2 工具选型 -->
+<section id="tools">
+<h2>2 · 工具最终选型（我替你拍板）<span class="sub">每一项都给"为什么选它"</span></h2>
+
+<h3>🧠 文本情感模型 —— 选 <code>yiyanghkust/finbert-tone-chinese</code></h3>
+<div class="card">
+<span class="badge b-best">主力推荐</span> <a href="https://huggingface.co/yiyanghkust/finbert-tone-chinese" target="_blank">huggingface.co/yiyanghkust/finbert-tone-chinese</a>
+<div class="kv" style="margin-top:8px;">
+为什么是它：<b>目前唯一"中文 + 金融 + 开箱即用"的三分类情感模型</b>（0中立/1正面/2负面），正好对应舆情的看涨/看跌/中性。准确率 0.88、宏 F1 0.87，transformers 几行代码上线。
+</div>
+<div class="note warn" style="margin-top:10px;"><b>一个坑要提前知道：</b>它训练语料是"分析师报告"（书面语），而股吧/雪球是口语+emoji+黑话（"梭哈""韭菜""抬轿子"），存在<b>域偏移</b>。上线后建议人工标注几百条股吧样本做一轮微调或阈值校准。</div>
+</div>
+
+<div class="tablewrap"><table>
+<tr><th>候选</th><th>定位</th><th>结论</th></tr>
+<tr><td><b>yiyanghkust/finbert-tone-chinese</b></td><td>中文金融三分类</td><td><span class="badge b-best">✅ 主力</span> 开箱即用</td></tr>
+<tr><td>熵简 valuesimplex/FinBERT</td><td>320亿字金融语料中文预训练基座</td><td><span class="badge b-opt">进阶</span> 有标注数据时自己加分类头微调，效果天花板最高</td></tr>
+<tr><td>IDEA Erlangshen-Roberta-110M-Sentiment</td><td>通用中文情感（二分类）</td><td><span class="badge b-opt">兜底</span> 非金融、无中性档，仅作对比</td></tr>
+<tr><td>SnowNLP</td><td>电商语料老库</td><td>❌ 金融偏差大，只做快速原型</td></tr>
+<tr><td>ProsusAI/finbert</td><td>英文金融</td><td>❌ 中文场景不用</td></tr>
+</table></div>
+
+<h3>🗂️ 数据底座 —— <code>akshare</code>（主）+ <code>Tushare</code>（备）</h3>
+<div class="card">akshare <span class="badge b-free">免费</span> 是 A 股舆情+行情数据的核心，热度/资金/龙虎榜接口齐全且合规。Tushare 部分接口（moneyflow / hsgt_top10 / top_list）需积分，作为备份交叉验证。</div>
+
+<h3>🕷️ 爬虫（第二阶段才上）</h3>
+<div class="card">微博 → <code>MediaCrawler</code>；东财股吧 → <code>EastMoney_Crawler</code>；雪球 → <code>XueQiuSuperSpider</code>。<b>仅在 akshare 热度接口不够、需要原文做细粒度情感时启用。</b></div>
+</section>
+
+<!-- 3 情绪温度计 -->
+<section id="index">
+<h2>3 · 「情绪温度计」指标设计<span class="sub">把一堆数据变成一个 0–100 的分数 + 反向信号</span></h2>
+<div class="baby">最终我们要给每只股票（和大盘）算一个 <b>情绪温度 0–100</b>：0=冰点恐慌，100=狂热过热。再叠加"反向解读"——温度太高反而要警惕。</div>
+
+<h3>三个分维度（各自归一化到 0–100）</h3>
+<div class="tablewrap"><table>
+<tr><th>维度</th><th>由什么算</th><th>权重建议</th></tr>
+<tr><td><b>热度分 H</b></td><td>千股千评关注指数 + 人气榜排名变化 + 雪球讨论量 + 百度热搜（取分位数）</td><td>40%</td></tr>
+<tr><td><b>资金分 F</b></td><td>北向净流入 + 主力净流入 + 龙虎榜净买（标准化）</td><td>35%</td></tr>
+<tr><td><b>文本情感分 S</b></td><td>finbert-tone-chinese 对当日股吧/雪球/微博文本的"看涨比例"</td><td>25%</td></tr>
+</table></div>
+
+<div class="formula">
+情绪温度 = 0.40·H + 0.35·F + 0.25·S　（每项先归一化到 0–100）<br><br>
+<span style="color:var(--gold)">反向解读规则：</span><br>
+　温度 ≥ 80 且 较 5 日均值飙升 → <span style="color:var(--danger)">🔴 过热预警（散户狂热，警惕回撤）</span><br>
+　温度 ≤ 20 且 持续低迷　　　 → <span style="color:var(--green)">🟢 冰点信号（恐慌见底，可关注）</span><br>
+　20 &lt; 温度 &lt; 80　　　　　　 → ⚪ 中性区间（结合基本面/技术面）
+</div>
+<div class="note info"><b>为什么要"飙升/持续"这个二阶条件？</b> 单看绝对温度会误判——茅台天天高人气是常态。真正有用的是<b>变化率</b>：情绪从平静突然飙到狂热，才是反转信号。这一步把"水平值"升级成"动量值"。</div>
+<div class="note tip"><b>验证方法（必须做）：</b>拿过去 1–2 年历史数据回测——"温度≥80 的股票，未来 5/10/20 日收益是否真的更差？"。验证通过这个指标才可信，否则就是拍脑袋。（参考 AAII 散户情绪反向指标的研究方法）</div>
+</section>
+
+<!-- 4 架构 -->
+<section id="arch">
+<h2>4 · 技术架构 / 数据流<span class="sub">五个模块，松耦合</span></h2>
+<div class="card">
+<pre>
+┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐
+│ ① 采集层      │→ │ ② 清洗/存储   │→ │ ③ 情绪计算    │→ │ ④ 指标聚合    │→ │ ⑤ 输出/对接   │
+│ akshare定时   │  │ 去重/分词/    │  │ finbert中文   │  │ H+F+S→温度    │  │ JSON给决策层  │
+│ 抓热度/资金   │  │ 脱敏/入库     │  │ 文本情感打分  │  │ +反向信号判定 │  │ +前端温度计UI │
+│ (+可选爬虫)   │  │ SQLite/DuckDB │  │               │  │ +历史回测     │  │               │
+└──────────────┘  └──────────────┘  └──────────────┘  └──────────────┘  └──────────────┘
+     每日定时(企业微信/cron)         GPU可选,CPU也能跑       存时间序列          喂给AI大师agent
+</pre>
+</div>
+<div class="tablewrap"><table>
+<tr><th>模块</th><th>技术选型</th><th>说明</th></tr>
+<tr><td>① 采集</td><td>Python + akshare + APScheduler/cron</td><td>每日收盘后定时跑，增量入库</td></tr>
+<tr><td>② 存储</td><td>SQLite（轻）/ DuckDB（分析快）/ Parquet</td><td>时间序列，按股票代码+日期建索引</td></tr>
+<tr><td>③ 情绪计算</td><td>transformers + finbert-tone-chinese</td><td>批量推理，CPU 可跑，量大上 GPU</td></tr>
+<tr><td>④ 聚合</td><td>pandas</td><td>算温度、归一化、反向判定、回测</td></tr>
+<tr><td>⑤ 输出</td><td>JSON API + 前端图表（你现有 Tauri 栈）</td><td>给决策层 agent + 给用户看的温度计</td></tr>
+</table></div>
+</section>
+
+<!-- 5 路线图 -->
+<section id="road">
+<h2>5 · 分阶段实施路线图<span class="sub">从能跑到好用，三步走</span></h2>
+<div class="road">
+  <div class="step"><span class="w">第 1 周 · MVP（零爬虫零风险）</span>
+    <div>只用 akshare 第①②层接口，搭出「热度分 H + 资金分 F」→ 情绪温度（先不含文本情感）。每日定时抓取入库，输出 JSON + 一个简单温度计页面。<b>目标：今天就能看到每只股票的情绪温度和过热预警。</b></div>
+  </div>
+  <div class="step"><span class="w">第 2–3 周 · 文本情感增强</span>
+    <div>接入 finbert-tone-chinese，对股吧/雪球文本（先用 akshare 能拿到的，必要时上 EastMoney_Crawler）做情感打分，补上 S 维度。人工标注几百条做阈值校准。</div>
+  </div>
+  <div class="step"><span class="w">第 4 周 · 回测验证 + 反向信号</span>
+    <div>用 1–2 年历史数据回测"过热→回撤、冰点→反弹"是否成立，标定阈值（80/20）。把验证过的反向信号正式接入。</div>
+  </div>
+  <div class="step"><span class="w">进阶 · 微调 + 多源 + 接主系统</span>
+    <div>用熵简 FinBERT 基座做领域微调；扩展微博/抖音/B站；把情绪温度作为"情绪分析师 agent"的事实输入，喂给 AI 大师决策层。</div>
+  </div>
+</div>
+<div class="note tip"><b>给小白的话：</b>别一开始就追求大而全。<b>第 1 周的 MVP 用纯 akshare 就能产出有用的"情绪温度+过热预警"</b>，先跑起来看到效果，再逐步加文本情感和爬虫。</div>
+</section>
+
+<!-- 6 输出 -->
+<section id="output">
+<h2>6 · 输出格式与主系统对接<span class="sub">舆情板块吐什么给"AI 大师决策层"</span></h2>
+<div class="card">
+<pre>{
+  "stock": "600519 贵州茅台",
+  "date": "2026-06-09",
+  "sentiment_score": 83,          // 情绪温度 0-100
+  "level": "过热",                 // 冰点/偏冷/中性/偏热/过热
+  "signal": "🔴 过热预警-警惕回撤",  // 反向解读结论
+  "breakdown": { "热度H": 88, "资金F": 79, "文本情感S": 80 },
+  "evidence": {
+    "千股千评关注指数排名": "第12名(↑35)",
+    "北向资金": "净流入2.1亿",
+    "雪球讨论量": "近7日+210%",
+    "股吧看涨比例": "76%"
+  },
+  "contrarian_note": "散户关注度7日飙升、看涨情绪集中,历史上此状态后20日跑输大盘概率偏高"
+}</pre>
+</div>
+<div class="baby">这段 JSON 就是舆情板块交给"投资委员会"的情报卡。决策层的不同门派 agent 会这样用它：<b>趋势派</b>看到"过热"可能顺势但收紧止损；<b>价值派</b>把它当噪音忽略；<b>反向派</b>直接当卖出预警。同一份情绪数据，不同门派读出不同动作。</div>
+</section>
+
+<!-- 风险 -->
+<section id="risk">
+<h2>⚠ 合规与风险<span class="sub">2026 现行法律，务必遵守</span></h2>
+<div class="note danger">
+<b>爬虫红线（《反不正当竞争法》2025修订第13条 + 个保法 + 数安法）：</b><br>
+① 禁止"避开或破坏技术管理措施"获取数据（微博诉脉脉判例已确立）；② 公开信息处理也须"合理范围、符合原始目的"，股吧/雪球言论含个人信息，批量采集有风险；③ 破坏 robots 协议是侵权认定要素。
+</div>
+<div class="note tip">
+<b>降风险做法（按优先级）：</b>① <b>主用 akshare 聚合接口</b>（公开聚合数据，风险最低，本规划主力）；② 微博走官方开放平台 API；③ 必须爬时——只采公开非敏感内容、遵守 robots、控频不破坏服务、不绕登录、数据仅内部分析不二次售卖；④ 绝不突破反爬、不存可识别个人画像。
+</div>
+<div class="note warn"><b>投资免责：</b>情绪温度是<b>概率性反向信号</b>，会出错、会早到晚到，<b>不构成投资建议</b>。必须结合基本面/技术面，回测表现不代表未来收益，风险自负。</div>
+</section>
+
+<footer>
+  <p>📄 A股舆情情绪分析模块 · 实施规划 v1 · 2026-06-09</p>
+  <p>核心选型：akshare（数据底座·主力）+ yiyanghkust/finbert-tone-chinese（中文金融情感）+ MediaCrawler/EastMoney_Crawler（必要时爬虫）。所有接口/模型均经联网核实。</p>
+</footer>
+</main>
+</div>
+</body>
+</html>

@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 智能选股 + 舆情监控 全景研究报告（小白版）</title>
+<style>
+  :root{
+    --bg:#0d1117; --bg2:#161b22; --card:#1c2330; --line:#2a3344;
+    --txt:#e6edf3; --sub:#9aa7b8; --accent:#4ea1ff; --accent2:#3fb950;
+    --warn:#f0883e; --danger:#f85149; --gold:#e3b341; --purple:#bc8cff;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{margin:0;font-family:"Segoe UI","Microsoft YaHei","PingFang SC",system-ui,sans-serif;
+    background:linear-gradient(180deg,#0a0e14,#0d1117 30%);color:var(--txt);line-height:1.75;}
+  a{color:var(--accent);text-decoration:none;}
+  a:hover{text-decoration:underline;}
+  code{background:#222b3a;padding:2px 7px;border-radius:5px;font-size:.9em;color:#ffd9a0;font-family:Consolas,monospace;}
+  .wrap{display:flex;max-width:1400px;margin:0 auto;}
+  /* nav */
+  nav{position:sticky;top:0;align-self:flex-start;width:250px;height:100vh;overflow-y:auto;
+    padding:24px 16px;border-right:1px solid var(--line);background:rgba(13,17,23,.7);backdrop-filter:blur(6px);}
+  nav h3{font-size:13px;color:var(--sub);text-transform:uppercase;letter-spacing:1px;margin:18px 0 8px;}
+  nav a{display:block;color:var(--sub);padding:6px 10px;border-radius:7px;font-size:14px;margin:2px 0;}
+  nav a:hover{background:var(--bg2);color:var(--txt);text-decoration:none;}
+  nav .logo{font-size:20px;font-weight:800;color:var(--txt);margin-bottom:4px;}
+  nav .logo span{color:var(--accent);}
+  main{flex:1;padding:40px 48px;max-width:1100px;min-width:0;}
+  /* hero */
+  .hero{background:radial-gradient(circle at 20% 0%,rgba(78,161,255,.18),transparent 60%),var(--card);
+    border:1px solid var(--line);border-radius:20px;padding:40px;margin-bottom:36px;}
+  .hero h1{font-size:34px;margin:0 0 12px;line-height:1.3;}
+  .hero p{color:var(--sub);font-size:16px;margin:8px 0;}
+  .pills{margin-top:18px;}
+  .pill{display:inline-block;background:#21303f;color:#cfe6ff;border:1px solid #2f4a63;
+    border-radius:999px;padding:5px 14px;font-size:13px;margin:4px 6px 4px 0;}
+  section{margin:54px 0;scroll-margin-top:20px;}
+  h2{font-size:27px;border-left:5px solid var(--accent);padding-left:14px;margin-bottom:6px;}
+  h2 .sub{display:block;font-size:14px;color:var(--sub);font-weight:400;margin-top:4px;padding-left:1px;}
+  h3{font-size:20px;color:#cfe1f5;margin-top:34px;}
+  h4{font-size:16px;color:var(--gold);margin:18px 0 6px;}
+  /* cards */
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px 24px;margin:16px 0;}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;}
+  .repo{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px;transition:.2s;}
+  .repo:hover{border-color:var(--accent);transform:translateY(-3px);}
+  .repo .name{font-weight:700;font-size:15px;word-break:break-all;}
+  .repo .star{color:var(--gold);font-size:12px;font-weight:600;}
+  .repo .desc{color:var(--sub);font-size:13.5px;margin:8px 0;}
+  .tag{display:inline-block;font-size:11px;padding:2px 8px;border-radius:6px;margin:3px 4px 0 0;}
+  .t-py{background:#2a3a2a;color:#9be29b;} .t-js{background:#3a372a;color:#e8d98a;}
+  .t-free{background:#1f3a3a;color:#7fe0d8;} .t-paid{background:#3a2a2a;color:#f0a0a0;}
+  .stars5::after{content:"★★★★★";color:var(--gold);}
+  /* tables */
+  .tablewrap{overflow-x:auto;border-radius:12px;border:1px solid var(--line);margin:16px 0;}
+  table{border-collapse:collapse;width:100%;font-size:13.5px;min-width:640px;}
+  th,td{padding:11px 13px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top;}
+  th{background:#1a2230;color:#cfe1f5;font-weight:600;position:sticky;top:0;}
+  tr:hover td{background:#19202c;}
+  /* callouts */
+  .note{border-radius:10px;padding:14px 18px;margin:16px 0;border-left:4px solid;}
+  .note.tip{background:rgba(63,185,80,.08);border-color:var(--accent2);}
+  .note.warn{background:rgba(240,136,62,.08);border-color:var(--warn);}
+  .note.danger{background:rgba(248,81,73,.1);border-color:var(--danger);}
+  .note.info{background:rgba(78,161,255,.08);border-color:var(--accent);}
+  .note b{color:#fff;}
+  .baby{background:rgba(188,140,255,.08);border:1px dashed #6b4e9e;border-radius:10px;padding:12px 16px;margin:12px 0;}
+  .baby::before{content:"🍼 大白话：";color:var(--purple);font-weight:700;}
+  /* school cards */
+  .school{border:1px solid var(--line);border-radius:14px;margin:18px 0;overflow:hidden;}
+  .school summary{cursor:pointer;padding:18px 22px;font-size:18px;font-weight:700;
+    background:linear-gradient(90deg,#1b2433,#161b22);list-style:none;display:flex;justify-content:space-between;align-items:center;}
+  .school summary::-webkit-details-marker{display:none;}
+  .school summary .who{font-size:13px;color:var(--sub);font-weight:400;}
+  .school[open] summary{border-bottom:1px solid var(--line);}
+  .school .body{padding:20px 24px;}
+  .kv{display:grid;grid-template-columns:120px 1fr;gap:6px 16px;margin:10px 0;}
+  .kv .k{color:var(--gold);font-weight:600;font-size:14px;}
+  .quote{font-style:italic;color:#bcd;border-left:3px solid var(--purple);padding-left:12px;margin:10px 0;}
+  /* interactive advisor */
+  .advisor{background:linear-gradient(135deg,#15233a,#1c1230);border:1px solid #3a3a5a;border-radius:16px;padding:26px;}
+  .advisor select,.advisor button{font-size:15px;padding:10px 14px;border-radius:9px;border:1px solid var(--line);
+    background:var(--bg2);color:var(--txt);margin:6px 8px 6px 0;}
+  .advisor button{background:var(--accent);color:#04101f;font-weight:700;cursor:pointer;border:none;}
+  .advisor button:hover{filter:brightness(1.1);}
+  #advout{margin-top:18px;}
+  .quiz label{display:block;background:var(--bg2);border:1px solid var(--line);border-radius:9px;
+    padding:10px 14px;margin:7px 0;cursor:pointer;}
+  .quiz label:hover{border-color:var(--accent);}
+  /* footer */
+  footer{border-top:1px solid var(--line);margin-top:60px;padding:30px 0;color:var(--sub);font-size:13px;}
+  .toc-num{color:var(--accent);font-weight:700;margin-right:6px;}
+  .big-disclaimer{background:rgba(248,81,73,.12);border:1px solid var(--danger);border-radius:14px;padding:20px 24px;}
+  @media(max-width:860px){nav{display:none;}main{padding:20px;}.hero h1{font-size:26px;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav>
+  <div class="logo">AI 选股<span>·</span>舆情</div>
+  <div style="font-size:12px;color:var(--sub);margin-bottom:10px;">全景研究报告 · 小白版</div>
+  <h3>目录</h3>
+  <a href="#intro">0 · 5分钟看懂全局</a>
+  <a href="#projects">1 · GitHub 开源项目</a>
+  <a href="#schools">2 · 投资大师门派</a>
+  <a href="#rule15">3 · 「15%卖」真相</a>
+  <a href="#crawler">4 · 社媒爬虫来源</a>
+  <a href="#skills">5 · 工具/Skill 清单</a>
+  <a href="#judge">6 · 怎么评判好坏</a>
+  <a href="#terms">7 · 术语小白翻译</a>
+  <a href="#tool">8 · 你的终极工具蓝图</a>
+  <a href="#advisor">9 · 互动·选你的门派</a>
+  <a href="#risk">⚠ 风险与免责</a>
+</nav>
+
+<main>
+<div class="hero" id="intro">
+  <h1>🧭 AI 智能选股 + 舆情监控<br>开源全景研究报告</h1>
+  <p>把「用 AI agent 选股、爬社交媒体看散户情绪、按投资大师门派给买卖建议」这件事，从 GitHub 真实项目 → 投资流派 → 数据来源 → 评判标准，<b>一次讲透，小白也看得懂</b>。</p>
+  <p style="font-size:13px;">生成日期 2026-06-09 · 所有 GitHub 项目均真实可查 · 所有大师事实经 WebSearch 核对</p>
+  <div class="pills">
+    <span class="pill">23 个真实开源项目</span>
+    <span class="pill">9 大投资门派</span>
+    <span class="pill">20+ 数据平台</span>
+    <span class="pill">15+ 爬虫/情感工具</span>
+    <span class="pill">互动门派顾问</span>
+  </div>
+</div>
+
+<div class="note info">
+<b>📌 一句话看懂你想要的东西：</b> 你想要的「超强工具」= <b>爬虫（抓社媒情绪）</b> + <b>情感分析（判断大家是赚是亏）</b> + <b>行情/基本面数据</b> + <b>AI agent（模拟投资大师做决策）</b> + <b>风控规则（止盈止损）</b>。这五块在开源世界里<b>每一块都有现成项目</b>，下面逐块拆给你看。
+</div>
+
+<!-- ============ 0 全局 ============ -->
+<section>
+<h2>0 · 先用 5 分钟看懂整个系统长什么样<span class="sub">把复杂的事画成一条流水线</span></h2>
+<div class="card">
+<pre style="color:#9be29b;font-size:13px;overflow-x:auto;line-height:1.5;">
+ ┌─────────────┐   ┌──────────────┐   ┌───────────────┐   ┌──────────────┐   ┌─────────────┐
+ │ ① 抓数据     │ → │ ② 算情绪      │ → │ ③ 拼信息       │ → │ ④ AI大师决策  │ → │ ⑤ 给建议     │
+ │ 社媒/新闻/   │   │ 大家在说赚    │   │ 行情+基本面+   │   │ 按你选的门派  │   │ 买不买/仓位/ │
+ │ 视频/行情    │   │ 还是亏?(反向) │   │ 政策+情绪      │   │ 风格投票      │   │ 何时买卖+止损│
+ └─────────────┘   └──────────────┘   └───────────────┘   └──────────────┘   └─────────────┘
+   MediaCrawler      FinBERT/SnowNLP      akshare/Tushare     ai-hedge-fund        风控规则引擎
+   snscrape/PRAW       VADER/LLM           Yahoo Finance      TradingAgents       (7-8%止损等)
+</pre>
+</div>
+<div class="baby">这套系统就像一个「投资参谋部」：先派情报员（爬虫）去网上听大家怎么聊，再让分析师（情感模型）判断风向是热是冷，然后把行情、财报、政策摆上桌，最后请几位「虚拟投资大师」开会投票，给你一个带仓位和止损线的方案。<b>注意：它是参谋，不是算命，最终扣扳机的是你。</b></div>
+</section>
+
+<!-- ============ 1 GitHub 项目 ============ -->
+<section id="projects">
+<h2>1 · GitHub 上真实存在的开源项目<span class="sub">按你需求的 7 个方向分类，全部可点开仓库</span></h2>
+
+<div class="note tip"><b>最贴合你需求的「对标对象」</b>就是 <code>virattt/ai-hedge-fund</code>（约 5 万 star）——它把巴菲特、芒格、木头姐、Michael Burry、彼得·林奇等 <b>12 位投资大师做成 AI agent，开「投资委员会」投票</b>给出买卖信号，还带可视化界面和回测。这正是你说的"按门派给建议"。</div>
+
+<h3>🏆 第一梯队（强烈建议先看）</h3>
+<div class="grid">
+  <div class="repo">
+    <div class="name">virattt/ai-hedge-fund <span class="star">★ ~51k</span></div>
+    <div class="desc">12 位投资大师 + 6 个职能 agent 组成「投资委员会」投票出信号。拖拽式可视化搭委员会、内置回测、支持 13 家 LLM。</div>
+    <span class="tag t-py">Python·LangGraph</span><span class="tag t-js">React前端</span><span class="tag t-paid">需LLM key</span>
+    <div style="margin-top:8px;"><a href="https://github.com/virattt/ai-hedge-fund" target="_blank">→ 打开仓库</a> · 小白友好 <span class="stars5"></span></div>
+  </div>
+  <div class="repo">
+    <div class="name">mshumer/gpt-investor <span class="star">★ 数千</span></div>
+    <div class="desc">门槛最低的全流程范例：Claude 自动列行业龙头→拉价格/财报/新闻→做情绪分析→给推荐和目标价。一个 Notebook 填 key 就跑。</div>
+    <span class="tag t-py">Jupyter</span><span class="tag t-paid">需Claude key</span>
+    <div style="margin-top:8px;"><a href="https://github.com/mshumer/gpt-investor" target="_blank">→ 打开仓库</a> · 小白友好 <span class="stars5"></span></div>
+  </div>
+  <div class="repo">
+    <div class="name">TauricResearch/TradingAgents <span class="star">★ 极高</span></div>
+    <div class="desc">模拟真实交易公司：基本面/情绪/技术分析师 + 交易员 + 风控团队分工协作。支持 OpenAI/Claude/DeepSeek/Qwen/本地Ollama。</div>
+    <span class="tag t-py">Python·LangGraph</span><span class="tag t-free">框架免费</span>
+    <div style="margin-top:8px;"><a href="https://github.com/TauricResearch/TradingAgents" target="_blank">→ 打开仓库</a></div>
+  </div>
+  <div class="repo">
+    <div class="name">hsliuping/TradingAgents-CN <span class="star">★ 数千</span></div>
+    <div class="desc">上面那个的<b>中文增强版</b>，接 AkShare/Tushare，支持 A股/港股、批量分析、智能选股、自选股管理。中文用户首选。</div>
+    <span class="tag t-py">Python·中文</span><span class="tag t-paid">需LLM key</span>
+    <div style="margin-top:8px;"><a href="https://github.com/hsliuping/TradingAgents-CN" target="_blank">→ 打开仓库</a></div>
+  </div>
+</div>
+
+<h3>🧠 金融大模型 / 严肃量化基建</h3>
+<div class="grid">
+  <div class="repo"><div class="name">AI4Finance/FinGPT <span class="star">★ ~20k</span></div><div class="desc">开源金融大模型，主打情绪分析、股价预测；LoRA 微调成本极低（&lt;$300）。</div><span class="tag t-py">PyTorch</span><a href="https://github.com/AI4Finance-Foundation/FinGPT" target="_blank">→ 仓库</a></div>
+  <div class="repo"><div class="name">AI4Finance/FinRL <span class="star">★ ~15k</span></div><div class="desc">金融强化学习，PPO/SAC等算法，train-test-trade 流水线，接 Yahoo/Binance。</div><span class="tag t-py">PyTorch·RL</span><a href="https://github.com/AI4Finance-Foundation/FinRL" target="_blank">→ 仓库</a></div>
+  <div class="repo"><div class="name">microsoft/qlib <span class="star">★ 数万</span></div><div class="desc">微软 AI 量化投研全栈平台，数据→训练→回测→执行一条龙。</div><span class="tag t-py">Python·ML</span><span class="tag t-free">免费</span><a href="https://github.com/microsoft/qlib" target="_blank">→ 仓库</a></div>
+  <div class="repo"><div class="name">microsoft/RD-Agent <span class="star">★ 数千+</span></div><div class="desc">让 AI 自动挖因子、调模型找 alpha，号称低成本跑赢基准。</div><span class="tag t-py">多agent·LLM</span><a href="https://github.com/microsoft/RD-Agent" target="_blank">→ 仓库</a></div>
+  <div class="repo"><div class="name">AI4Finance/FinRobot <span class="star">★ 数千</span></div><div class="desc">同团队的多 LLM 金融分析 agent 平台。</div><span class="tag t-py">多LLM</span><a href="https://github.com/AI4Finance-Foundation/FinRobot" target="_blank">→ 仓库</a></div>
+</div>
+
+<h3>📣 舆情 / 社媒情绪做交易信号</h3>
+<div class="grid">
+  <div class="repo"><div class="name">asad70/wallstreetbets-sentiment-analysis</div><div class="desc">抓 r/wallstreetbets 最热 ticker + VADER 算情绪，最经典入门项目。</div><span class="tag t-py">VADER·PRAW</span><span class="tag t-free">免费</span><a href="https://github.com/asad70/wallstreetbets-sentiment-analysis" target="_blank">→ 仓库</a></div>
+  <div class="repo"><div class="name">guanquann/Stocksera</div><div class="desc">聚合 60+ 另类数据（含 Reddit/StockTwits 情绪、内部交易、参议员持仓），有免费 API。情绪数据中台。</div><span class="tag t-py">Django</span><a href="https://github.com/guanquann/Stocksera" target="_blank">→ 仓库</a></div>
+  <div class="repo"><div class="name">gregyjames/stocktwits-sentiment</div><div class="desc">StockTwits 情绪，Keras/TF 的 RNN 预测。</div><span class="tag t-py">TensorFlow</span><a href="https://github.com/gregyjames/stocktwits-sentiment" target="_blank">→ 仓库</a></div>
+  <div class="repo"><div class="name">bklieger-groq/stockbot-on-groq</div><div class="desc">Groq+Llama3，聊天即出实时 TradingView 图表/财务/新闻，秒级响应。</div><span class="tag t-js">Next.js</span><a href="https://github.com/bklieger-groq/stockbot-on-groq" target="_blank">→ 仓库</a></div>
+</div>
+
+<h3>🪙 加密货币 / 链上 AI agent</h3>
+<div class="grid">
+  <div class="repo"><div class="name">freqtrade/freqtrade <span class="star">★ ~25k+</span></div><div class="desc">最流行开源加密交易 bot，Telegram/WebUI 控制，内置回测/资金管理/ML 优化。</div><span class="tag t-py">Python</span><span class="tag t-free">免费</span><a href="https://github.com/freqtrade/freqtrade" target="_blank">→ 仓库</a></div>
+  <div class="repo"><div class="name">hummingbot/hummingbot <span class="star">★ 万级</span></div><div class="desc">高频/做市框架，140+ 交易所。</div><span class="tag t-py">Python·Cython</span><a href="https://github.com/hummingbot/hummingbot" target="_blank">→ 仓库</a></div>
+  <div class="repo"><div class="name">elizaOS/eliza <span class="star">★ ~15k</span></div><div class="desc">TS 自治 AI agent 框架（原 ai16z），可接 Discord/TG 做链上自治交易 agent。<b>注意把框架本身和代币炒作分开看。</b></div><span class="tag t-js">TypeScript</span><a href="https://github.com/elizaOS/eliza" target="_blank">→ 仓库</a></div>
+</div>
+
+<h3>🇨🇳 A 股 / 中国市场专项</h3>
+<div class="grid">
+  <div class="repo"><div class="name">ZhuLinsen/daily_stock_analysis</div><div class="desc">LLM 驱动 A/H/美股分析，多源行情+实时新闻+决策仪表盘+企业微信/飞书/TG 推送，主打零成本白嫖。</div><span class="tag t-py">AkShare·LLM</span><a href="https://github.com/ZhuLinsen/daily_stock_analysis" target="_blank">→ 仓库</a></div>
+  <div class="repo"><div class="name">24mlight/A_Share_investment_Agent</div><div class="desc">A 股版多 agent 投资决策，SQLite 缓存行情/财报/新闻。</div><span class="tag t-py">AkShare·LLM</span><a href="https://github.com/24mlight/A_Share_investment_Agent" target="_blank">→ 仓库</a></div>
+  <div class="repo"><div class="name">DR-lin-eng/stock-scanner</div><div class="desc">A 股量化分析 + LLM 高级解读。</div><span class="tag t-py">Python·LLM</span><a href="https://github.com/DR-lin-eng/stock-scanner" target="_blank">→ 仓库</a></div>
+  <div class="repo"><div class="name">charliedream1/ai_quant_trade</div><div class="desc">股票 AI 操盘手，学习→模拟→实盘一站式，含因子/ML/DL/RL/高频/C++部署。</div><span class="tag t-py">全栈</span><span class="tag t-free">免费</span><a href="https://github.com/charliedream1/ai_quant_trade" target="_blank">→ 仓库</a></div>
+  <div class="repo"><div class="name">fasiondog/hikyuu</div><div class="desc">C++/Python 超高速 A 股量化研究框架。</div><span class="tag t-py">C++/Python</span><span class="tag t-free">免费</span><a href="https://github.com/fasiondog/hikyuu" target="_blank">→ 仓库</a></div>
+  <div class="repo"><div class="name">1nchaos/adata</div><div class="desc">免费 A 股量化数据库，行情数据底座。</div><span class="tag t-py">Python</span><span class="tag t-free">免费</span><a href="https://github.com/1nchaos/adata" target="_blank">→ 仓库</a></div>
+</div>
+
+<div class="note tip"><b>给小白的落地路径：</b>
+① 想最快看到「AI 大师帮我选股」→ <code>ai-hedge-fund</code>（有界面）或 <code>gpt-investor</code>（一个文件）。
+② 做中文/A股 → <code>TradingAgents-CN</code> + <code>daily_stock_analysis</code> + AkShare 数据。
+③ 做舆情信号 → <code>wallstreetbets-sentiment-analysis</code>（入门）→ <code>Stocksera</code>（数据）→ FinGPT（模型）。
+④ 加密 → <code>freqtrade</code>（最稳）+ <code>eliza</code>（agent化）。</div>
+<div class="note warn"><b>⚠ 注意：</b> 这些 agent 类项目几乎都要你自己准备 LLM API key（OpenAI/Claude/DeepSeek/Qwen，或本地 Ollama 免费）；行情数据美股走 Yahoo Finance、A股走 AkShare/Tushare。<b>所有项目都白纸黑字写着「仅供研究，不构成投资建议，未经实盘验证」。</b></div>
+</section>
+
+<!-- ============ 2 门派 ============ -->
+<section id="schools">
+<h2>2 · 投资市场各大门派与大师<span class="sub">点开每一派 → 看代表人物 / 选股 / 买卖 / 止盈止损 / 适合谁 / 风险</span></h2>
+<div class="baby">股市里没有「唯一正确」的赚钱法，只有「不同性格的人各走各的路」。下面 9 个门派本质是 9 种世界观。<b>选门派之前，先问自己是不是那块料。</b></div>
+
+<details class="school" open>
+  <summary>① 价值投资派 <span class="who">格雷厄姆 · 巴菲特 · 芒格</span></summary>
+  <div class="body">
+    <div class="kv"><div class="k">核心理念</div><div>安全边际（1块的东西等跌到5毛才买）+ 买有「护城河」的好公司长期持有。只买看得懂的生意（能力圈）。</div></div>
+    <div class="kv"><div class="k">怎么选股</div><div>看公司本身不看K线：低市盈率/市净率、稳定盈利、低负债、品牌/专利护城河、管理层诚实。</div></div>
+    <div class="kv"><div class="k">买入信号</div><div>价格显著低于内在价值，出现安全边际；市场恐慌人人喊跌时——「别人恐惧我贪婪」。</div></div>
+    <div class="kv"><div class="k">止盈止损</div><div><b>几乎不设固定百分比止损。</b>逻辑：1块的东西5毛买的，跌到4毛是该加仓不是该跑。靠的是事前的安全边际，基本面变坏才卖。</div></div>
+    <div class="kv"><div class="k">持仓集中度</div><div>集中。巴菲特：「分散是无知者的自我保护。」前提是你真的非常懂。</div></div>
+    <div class="kv"><div class="k">适合谁</div><div>有耐心、能读财报、不爱看盘、忍得住短期下跌的长期投资者、上班族。</div></div>
+    <div class="kv"><div class="k">⚠ 风险</div><div>「便宜」可能是陷阱（公司真出事而非打折）；不止损≠死扛，小白照搬「不止损」会扛到退市；可能套牢几年。</div></div>
+    <div class="baby">把股票当菜市场打折的好东西来淘，挑货真价实的，便宜了囤一大堆，耐心拿着。</div>
+    <div class="quote">「市场短期是投票机，长期是称重机。」——格雷厄姆　|　「价格是你付出的，价值是你得到的。」——巴菲特</div>
+  </div>
+</details>
+
+<details class="school">
+  <summary>② 成长投资派 <span class="who">费雪 · 彼得·林奇</span></summary>
+  <div class="body">
+    <div class="kv"><div class="k">核心理念</div><div>价值派盯「现在便宜」，成长派盯「未来变大」。十倍股（Tenbagger）+ PEG指标（市盈率÷增长率，≤1算便宜）。</div></div>
+    <div class="kv"><div class="k">怎么选股</div><div>林奇「投资你了解的东西」——从生活里找（你天天用、周围都在买的产品）再查财报验证；费雪「闲聊法」访谈客户/对手/员工挖真实竞争力。</div></div>
+    <div class="kv"><div class="k">买入信号</div><div>成长快、PEG合理、行业空间大、产品被市场验证。</div></div>
+    <div class="kv"><div class="k">止盈止损</div><div>基本面驱动不机械设线。林奇名言批散户：<b>「拔掉鲜花，浇灌野草」</b>——别一涨就卖好股、一跌死扛烂股，要反过来。</div></div>
+    <div class="kv"><div class="k">持仓集中度</div><div>建议普通人持 5 只左右，每只都要真懂。</div></div>
+    <div class="kv"><div class="k">适合谁</div><div>爱观察新行业新产品、愿做功课、能忍成长股波动的人。</div></div>
+    <div class="kv"><div class="k">⚠ 风险</div><div>高估值，增速不及预期会「戴维斯双杀」（业绩+估值一起垮）；别只听故事，要用 PEG 和真实业绩验证。彼得·林奇 13 年年化约 29.2%（已核实）。</div></div>
+    <div class="baby">找一棵正在疯长的小树苗，哪怕买价稍贵，只要能长成参天大树就值——但别把刚抽芽的当成大树。</div>
+    <div class="quote">「你能赚多少，跟你能忍受多大的不确定性有关。」——彼得·林奇</div>
+  </div>
+</details>
+
+<details class="school">
+  <summary>③ 趋势 / 技术派 <span class="who">利弗莫尔 · 欧奈尔 · 达瓦斯 · 米奈尔维尼</span></summary>
+  <div class="body">
+    <div class="kv"><div class="k">核心理念</div><div><b>不看公司好坏，只看价格走势。</b>信仰：涨的会继续涨，跌的会继续跌（趋势惯性）。</div></div>
+    <div class="kv"><div class="k">代表打法</div><div>
+      • <b>利弗莫尔</b>：顺势而为、关键点放量突破进场、绝不向下摊平。<br>
+      • <b>欧奈尔 CAN SLIM</b>：7 个选股条件（当季/年度盈利↑、新高、小盘、龙头、机构买入、看大盘方向）。<br>
+      • <b>达瓦斯箱体理论</b>：放量突破箱顶买入，止损设新箱下沿，一路换箱。<br>
+      • <b>米奈尔维尼 SEPA</b>：趋势模板（均线多头）+ 基本面强 + VCP 收缩形态精确入场。</div></div>
+    <div class="kv"><div class="k">止盈止损</div><div><b>严格、机械、提前设定。</b>欧奈尔铁律：买入后跌 <b>7–8% 无条件卖出</b>，止盈奔 20–25%（<b>3:1 盈亏比</b>）。即使胜率只有一半，靠「大赚小亏」照样盈利。</div></div>
+    <div class="kv"><div class="k">持仓集中度</div><div>相对集中（只买当下最强的少数股），用严格止损控风险；大盘转弱甚至空仓。</div></div>
+    <div class="kv"><div class="k">适合谁</div><div>纪律性极强、盘感好、能机械执行、<b>割肉不眨眼</b>的人。</div></div>
+    <div class="kv"><div class="k">⚠ 风险</div><div>纪律是命门——小白会买不会卖，止损线到了下不去手，一次死扛亏回前面十次小赚；假突破频繁打止损。</div></div>
+    <div class="baby">不管公司好不好，只跟着大资金的脚印走——它往上冲我就上车，它一回头我立刻跳车，绝不跟一只跌的股票谈感情。</div>
+    <div class="quote">「截断亏损，让利润奔跑。」——利弗莫尔　|　「亏大钱往往是因为死抱小亏损不卖。」——欧奈尔</div>
+  </div>
+</details>
+
+<details class="school">
+  <summary>④ 宏观对冲派 <span class="who">索罗斯（进攻）· 达里奥（防守）</span></summary>
+  <div class="body">
+    <div class="kv"><div class="k">索罗斯·反身性</div><div>人的看法会反过来改变现实，形成自我强化的泡沫。专找「市场偏离现实太远」的拐点下重注。1992 狙击英镑<b>一天豪赚超 10 亿英镑</b>（已核实）。打法：高杠杆重仓，看错立刻大幅砍仓。</div></div>
+    <div class="kv"><div class="k">达里奥·全天候</div><div>不预测涨跌，用<b>风险平价</b>构建一个在「增长/衰退×通胀/通缩」四种经济天气下都不大亏的组合（股+债+黄金+商品风险配平）。靠多元分散+定期再平衡，不靠止损。</div></div>
+    <div class="kv"><div class="k">适合谁</div><div>索罗斯式≈几乎不适合个人（要宏观研究+巨资+杠杆心脏）；<b>达里奥全天候适合想稳健保值的普通人</b>，可用宽基ETF+债券+黄金搭简化版。</div></div>
+    <div class="kv"><div class="k">⚠ 风险</div><div>杠杆会让你看错时一夜爆仓（小白别学索罗斯）；全天候长期收益不高，A股缺对应工具要打折扣。</div></div>
+    <div class="baby">索罗斯：我赌的不是一只股票，是整个国家的货币撑不住——看准下重注，看错立刻跑。<br>达里奥：我不知道明天晴雨，所以雨伞棉袄墨镜全带上，啥天气都冻不死。</div>
+    <div class="quote">「重要的不是你判断对错，而是对时赚多少、错时亏多少。」——索罗斯</div>
+  </div>
+</details>
+
+<details class="school">
+  <summary>⑤ 量化派 <span class="who">詹姆斯·西蒙斯（大奖章基金）</span></summary>
+  <div class="body">
+    <div class="kv"><div class="k">核心理念</div><div>不靠人脑判断，靠海量数据+数学模型+高速计算机，捕捉微小但反复出现的统计规律，用极高频交易把「小概率优势」滚成巨利。</div></div>
+    <div class="kv"><div class="k">传奇业绩</div><div>大奖章基金 1988–2018 <b>费前年化约 66%、费后约 39%</b>（已核实），史上最赚钱基金，只对内部员工开放。</div></div>
+    <div class="kv"><div class="k">风控</div><div>完全模型化、自动化，纪律由代码强制执行，排除人性干扰。极度分散，同持上千头寸。</div></div>
+    <div class="kv"><div class="k">适合谁 / ⚠风险</div><div><b>几乎不适合个人</b>。需要顶尖数理人才+昂贵数据算力。大奖章的 66% 不可复制；个人手搓量化极易「过度拟合」（历史好看，实盘就废）。</div></div>
+    <div class="baby">不靠人脑猜，让超级计算机用数学公式每天做几百万笔小生意，每笔赚一点点，赢面稳定，积少成多。</div>
+  </div>
+</details>
+
+<details class="school">
+  <summary>⑥ 指数 / 被动派 <span class="who">约翰·博格（先锋集团）· 小白最友好</span></summary>
+  <div class="body">
+    <div class="kv"><div class="k">核心理念</div><div>承认自己赢不了市场，干脆「买下整个市场」：买跟踪大盘的指数基金（标普500/沪深300），长期持有。<b>低成本是王道</b>——省下的每分费用都直接变收益。</div></div>
+    <div class="kv"><div class="k">怎么买卖</div><div>定期定额「定投」，不管涨跌摊平成本；几乎不卖，长期持有几十年靠复利。</div></div>
+    <div class="kv"><div class="k">止盈止损</div><div><b>没有止损也几乎不止盈</b>，核心纪律是「别动」，不被情绪吓跑。</div></div>
+    <div class="kv"><div class="k">适合谁</div><div><b>最适合绝大多数小白和上班族</b>：没时间研究、追求长期稳健、能管住手。巴菲特也建议普通人买指数基金。</div></div>
+    <div class="kv"><div class="k">⚠ 风险</div><div>不等于不会亏，大盘跌一样跌，要扛住浮亏不割肉；威力在 10–20 年以上，A股要选对宽基。</div></div>
+    <div class="baby">我承认选不出明天的牛股，那就把整个市场全买下来，每月定投、几十年不动，靠经济增长躺着赚复利。</div>
+    <div class="quote">「不要在草堆里找那根针，直接把整个草堆买下来。」——博格</div>
+  </div>
+</details>
+
+<details class="school">
+  <summary>⑦ 风险 / 纪律派 · 海龟交易法则 <span class="who">理查德·丹尼斯 · 欧奈尔</span></summary>
+  <div class="body">
+    <div class="kv"><div class="k">海龟传奇</div><div>1983 年丹尼斯打赌「交易能不能教会普通人」，招一批新手只教一套机械规则，<b>四年赚超 1.75 亿美元</b>（已核实），证明纪律可教。</div></div>
+    <div class="kv"><div class="k">入场规则</div><div>价格突破过去 <b>20 日最高价</b>就买（系统1），慢版用 55 日（系统2）。突破就进，不预测。</div></div>
+    <div class="kv"><div class="k">仓位 / 止损</div><div>用 <b>N=20日ATR（平均波幅）</b>衡量波动；每笔<b>只拿总资金约 2% 去冒险</b>；止损=<b>2N（2倍ATR）动态止损</b>，不是固定百分比；顺向每走 0.5N 加一个单位（让利润奔跑）。</div></div>
+    <div class="kv"><div class="k">适合谁 / ⚠风险</div><div>能 100% 执行规则、不情绪化的人；趋势不明时会被反复止损「磨损」。</div></div>
+    <div class="baby">止损跟着波动率走，亏一点就认错，赢了就加码——这就是「截断亏损，让利润奔跑」的具体操作。</div>
+  </div>
+</details>
+
+<details class="school">
+  <summary>⑧ 中国市场本土流派 <span class="who">游资打板 · 本土价投 · 本土量化</span></summary>
+  <div class="body">
+    <div class="kv"><div class="k">游资/打板派</div><div>利用涨跌停板+情绪做短线接力，看人气/龙头/情绪周期。当天/次日竞价快速止损，纪律极严。<b>A股最凶险玩法之一，散户跟风九死一生，强烈不建议小白碰。</b></div></div>
+    <div class="kv"><div class="k">本土价投派</div><div>学巴菲特在A股找护城河龙头（白酒/家电/银行）长期持有，需适应A股估值波动更剧烈。相对适合普通长期投资者。</div></div>
+    <div class="kv"><div class="k">本土量化派</div><div>私募量化（中高频选股/对冲），普通人主要通过买量化基金参与。提示：业绩分化大、监管对高频收紧，别盲目追「量化光环」。</div></div>
+  </div>
+</details>
+</section>
+
+<!-- ============ 3 15% 真相 ============ -->
+<section id="rule15">
+<h2>3 · 你问的「亏15%卖、赚15%也卖」到底是谁的规则？<span class="sub">核查后的结论很重要，请仔细看</span></h2>
+<div class="note danger">
+<b>核查结论：这不是任何一位投资大师的「招牌规则」。</b> 没有哪位大师把「对称的固定 15% 止盈+15% 止损」当成自己的法则。它更像流传于散户和培训内容里的「新手纪律简化版」，真正有出处的是下面三股思想：
+</div>
+<div class="card">
+<h4>① 威廉·欧奈尔的「7-8% 止损铁律」（真有出处）</h4>
+注意：欧奈尔的规则是<b>不对称的</b>——止损死守 7–8%，止盈却要奔 20–25%（3:1）。<b>他绝不会赚 15% 就卖</b>，那样会砍掉大牛股。所以「赚15%就卖」恰恰<b>违背</b>了欧奈尔的精神。
+<h4>② 利弗莫尔 / 海龟的「截断亏损，让利润奔跑」</h4>
+整个趋势派的灵魂：亏要快砍，赚要拿住，反对「赚一点就跑」。
+<h4>③ 海龟交易法则——动态止损</h4>
+用 2N（2倍ATR）跟着波动率走的动态止损，而非固定百分比。茅台跌15%和妖股跌15%含义完全不同。
+</div>
+<div class="note warn">
+<b>那「固定 15%」该怎么看？</b><br>
+✅ 优点：对完全不会卖的小白，任何明确止损都比死扛强，「亏15%就走」能保命。<br>
+❌ 大忌：<b>「赚15%就卖」会系统性砍掉你的大赢家</b>，留下全是亏损，正是林奇说的「拔花浇草」；对称15/15要求胜率超50%才不亏。
+</div>
+<div class="note tip"><b>专业改法：</b>把止损守紧（7–10% 或 2N），把止盈放开（让利润奔跑，用移动止损退出），做到<b>「亏得小、赚得大」</b>，而不是对称的 15 进 15 出。</div>
+</section>
+
+<!-- ============ 4 爬虫来源 ============ -->
+<section id="crawler">
+<h2>4 · 社媒/自媒体数据来源全清单<span class="sub">扩大到 20+ 平台，海外 + 国内</span></h2>
+<div class="note info"><b>🔑 核心逻辑——散户情绪是「反向指标」：</b>当社媒上「人人说赚钱、人人喊冲」时往往接近顶部（该跌了）；人人恐慌割肉时往往接近底部。<b>「大家都说赚钱」对你是卖出预警，不是买入理由。</b></div>
+
+<h3>🌍 海外平台</h3>
+<div class="tablewrap"><table>
+<tr><th>平台</th><th>能爬什么</th><th>对情绪分析的用途</th><th>难度/合规</th></tr>
+<tr><td><b>Reddit</b> (r/wallstreetbets)</td><td>帖子、评论、热度、ticker提及频次</td><td>散户情绪「震中」，ticker被刷屏=见顶预警</td><td>中·有官方API(PRAW)</td></tr>
+<tr><td><b>StockTwits</b></td><td>个股消息流，<b>用户自带Bullish/Bearish标签</b></td><td>天然带情绪标签，最干净的散户情绪源</td><td>低·有API</td></tr>
+<tr><td><b>X / Twitter</b></td><td>推文、转评赞、KOL喊单</td><td>实时情绪最快，加密尤其重要</td><td>高·API贵/养号封号</td></tr>
+<tr><td><b>YouTube</b></td><td>标题/字幕、评论、播放量</td><td>财经网红喊单密度、评论区情绪</td><td>中·官方Data API</td></tr>
+<tr><td><b>Google Trends</b></td><td>关键词搜索热度指数</td><td>搜索热度是经典FOMO顶部信号，零隐私风险</td><td>低·最安全合规</td></tr>
+<tr><td><b>新闻 RSS</b></td><td>标题、摘要、时间</td><td>利好利空密度，结构化合法</td><td>极低·最合规</td></tr>
+<tr><td>Discord / Telegram</td><td>频道群消息、订阅数</td><td>加密项目早期热度、喊单群FUD/FOMO</td><td>高·私域灰色</td></tr>
+<tr><td>TikTok / Seeking Alpha</td><td>短视频/分析文章+评论</td><td>年轻散户情绪 / 专业投资者对照</td><td>高·强反爬/付费墙</td></tr>
+</table></div>
+
+<h3>🇨🇳 国内平台</h3>
+<div class="tablewrap"><table>
+<tr><th>平台</th><th>能爬什么</th><th>对情绪分析的用途</th><th>难度/合规</th></tr>
+<tr><td><b>东方财富股吧</b></td><td>个股吧帖子、回复、人气榜</td><td>最纯粹的「韭菜情绪」温度计</td><td>中·反爬升级</td></tr>
+<tr><td><b>雪球</b></td><td>个股讨论、评论、关注数、组合</td><td>质量最高的散户/中产情绪源</td><td>中·akshare可取部分</td></tr>
+<tr><td><b>微博</b></td><td>博文、评论、转发、超话、大V喊单</td><td>国内最大公开情绪场</td><td>中高·强风控</td></tr>
+<tr><td><b>抖音 / B站 / 小红书</b></td><td>视频元数据、评论、弹幕、点赞</td><td>年轻散户情绪、喊单视频密度（B站弹幕是独特资产）</td><td>抖/红高·B站中</td></tr>
+<tr><td>知乎 / 贴吧</td><td>问答文章、帖子回复、赞同数</td><td>理性深度讨论（散户狂热的对照组）</td><td>中·需登录态</td></tr>
+<tr><td>财联社/同花顺/东财快讯</td><td>快讯、研报标题、公告</td><td>利好利空面、政策情绪</td><td>中·注意版权</td></tr>
+</table></div>
+</section>
+
+<!-- ============ 5 Skill 工具清单 ============ -->
+<section id="skills">
+<h2>5 · 爬虫 + 情感分析「Skill / 工具」清单<span class="sub">每块都给真实开源地址，按拼图分组</span></h2>
+
+<h3>🕷️ A. 通用爬虫框架</h3>
+<div class="grid">
+  <div class="repo"><div class="name">scrapy/scrapy</div><div class="desc">最成熟 Python 爬虫框架，结构化大规模抓取。</div><a href="https://github.com/scrapy/scrapy" target="_blank">→ 仓库</a></div>
+  <div class="repo"><div class="name">microsoft/playwright</div><div class="desc">浏览器自动化，应对 JS 渲染/登录态，MediaCrawler 底层就靠它。</div><a href="https://github.com/microsoft/playwright" target="_blank">→ 仓库</a></div>
+  <div class="repo"><div class="name">rmax/scrapy-redis</div><div class="desc">给 Scrapy 加分布式、多机协同、断点续爬。</div><a href="https://github.com/rmax/scrapy-redis" target="_blank">→ 仓库</a></div>
+</div>
+
+<h3>🎯 B. 各平台专用爬虫</h3>
+<div class="note tip"><b>⭐ 国内头号项目：</b> <code>NanmiCoder/MediaCrawler</code>（约 28k+ star）——一个项目搞定<b>小红书、抖音、快手、B站、微博、贴吧、知乎</b>。基于 Playwright 维持登录态、无需 JS 逆向，支持关键词/ID 搜索、一二级评论、扫码/Cookie 登录、导出 CSV/JSON/数据库。做国内舆情这是首选。</div>
+<div class="grid">
+  <div class="repo"><div class="name">NanmiCoder/MediaCrawler <span class="star">★ ~28k</span></div><div class="desc">国内 7 平台多合一爬虫，舆情系统的国内数据入口。</div><span class="tag t-py">Playwright</span><a href="https://github.com/NanmiCoder/MediaCrawler" target="_blank">→ 仓库</a></div>
+  <div class="repo"><div class="name">JustAnotherArchivist/snscrape</div><div class="desc">Twitter/Reddit/Telegram 公开数据，无需 key（Twitter 改版后部分受限）。</div><span class="tag t-py">Python</span><a href="https://github.com/JustAnotherArchivist/snscrape" target="_blank">→ 仓库</a></div>
+  <div class="repo"><div class="name">vladkens/twscrape</div><div class="desc">2025 仍维护的 X 抓取，需授权账号（养号，有封号风险）。</div><span class="tag t-py">Python</span><a href="https://github.com/vladkens/twscrape" target="_blank">→ 仓库</a></div>
+  <div class="repo"><div class="name">praw-dev/praw</div><div class="desc">官方 Reddit API 封装，合规首选。</div><span class="tag t-free">合规</span><a href="https://github.com/praw-dev/praw" target="_blank">→ 仓库</a></div>
+  <div class="repo"><div class="name">yt-dlp/yt-dlp</div><div class="desc">YouTube/B站等上千站点下载视频/字幕/元数据，抓字幕做文本情感。</div><a href="https://github.com/yt-dlp/yt-dlp" target="_blank">→ 仓库</a></div>
+  <div class="repo"><div class="name">GeneralMills/pytrends</div><div class="desc">Google Trends 搜索热度，最安全合规。</div><a href="https://github.com/GeneralMills/pytrends" target="_blank">→ 仓库</a></div>
+  <div class="repo"><div class="name">akfamily/akshare <span class="star">⭐底座</span></div><div class="desc">国内最全财经数据接口（东财/同花顺/腾讯/新浪/雪球聚合），含行情+部分舆情/资金流。</div><span class="tag t-free">免费</span><a href="https://github.com/akfamily/akshare" target="_blank">→ 仓库</a></div>
+  <div class="repo"><div class="name">mpquant/Ashare</div><div class="desc">极简 A股行情 API，新浪+腾讯双源自动切换。</div><a href="https://github.com/mpquant/Ashare" target="_blank">→ 仓库</a></div>
+</div>
+
+<h3>🧪 C. 情感分析模型 / 库（判断「赚了还是亏了」）</h3>
+<div class="grid">
+  <div class="repo"><div class="name">ProsusAI/finBERT <span class="star">⭐英文金融</span></div><div class="desc">金融语料微调的 BERT，财经文本情感（正/负/中）准确率远高于通用模型。</div><a href="https://github.com/ProsusAI/finBERT" target="_blank">→ 仓库</a></div>
+  <div class="repo"><div class="name">cjhutto/vaderSentiment</div><div class="desc">词典+规则，超快零训练，适合社媒短文本/emoji，做 baseline。</div><a href="https://github.com/cjhutto/vaderSentiment" target="_blank">→ 仓库</a></div>
+  <div class="repo"><div class="name">isnowfy/snownlp <span class="star">⭐中文</span></div><div class="desc">中文情感经典库，开箱即用 0-1 打分。注意语料偏电商，金融/股吧需重训或配词典。</div><a href="https://github.com/isnowfy/snownlp" target="_blank">→ 仓库</a></div>
+  <div class="repo"><div class="name">huggingface/transformers</div><div class="desc">可加载 FinBERT 及各类情感模型，也可微调大模型。</div><a href="https://github.com/huggingface/transformers" target="_blank">→ 仓库</a></div>
+  <div class="repo"><div class="name">LLM 情感分类（Claude/GPT）</div><div class="desc">零样本即可对中英文金融文本做细粒度情感+理由解释，能处理反讽/黑话；成本延迟较高，适合难样本兜底。</div><span class="tag t-paid">需API</span></div>
+</div>
+<div class="note tip"><b>实战组合：</b> 英文链路 <b>FinBERT + VADER</b> 互补；中文链路 <b>SnowNLP/重训模型打底 + LLM 兜底难样本</b>；数据底座 <b>akshare（行情）+ MediaCrawler（国内社媒）+ snscrape/PRAW（海外）</b>。</div>
+</section>
+
+<!-- ============ 6 评判 ============ -->
+<section id="judge">
+<h2>6 · 怎么评判一个舆情/选股工具好不好<span class="sub">小白可直接照着问的 8 条清单</span></h2>
+<div class="tablewrap"><table>
+<tr><th>维度</th><th>该问什么</th><th>🚩 红旗警告</th></tr>
+<tr><td>① 数据源覆盖</td><td>覆盖几个平台？海外+国内？评论级还是只有标题？</td><td>只有1-2个源、只抓标题不抓评论</td></tr>
+<tr><td>② 实时性</td><td>分钟级/小时级/隔夜？情绪是会过期的资产</td><td>号称实时实际延迟一天</td></tr>
+<tr><td>③ 准确率+回测</td><td>有没有历史回测证明信号真能预测？哪段时间哪些标的？</td><td>只给「精选案例」不给完整全样本</td></tr>
+<tr><td>④ 是否过拟合</td><td>做了样本外/未来数据验证吗？参数是不是调了几百遍贴历史？</td><td>回测收益高得离谱、参数特别多</td></tr>
+<tr><td>⑤ 是否可解释</td><td>结论能否溯源到「基于哪些帖子/什么情绪分数」？</td><td>黑箱「AI说买就买」无法溯源</td></tr>
+<tr><td>⑥ 成本</td><td>API/数据/算力/订阅费？被封后维护成本？</td><td>隐性成本（封号、IP代理、运维）没算</td></tr>
+<tr><td>⑦ 合规</td><td>数据来源合法吗？有无侵犯 ToS/隐私/版权？</td><td>大量爬登录态私域数据、转售数据</td></tr>
+<tr><td>⑧ 反向逻辑落地</td><td>把情绪当反向还是顺向用？是否区分极端值？</td><td>简单「利好就买」没考虑情绪过热=反向信号</td></tr>
+</table></div>
+<div class="baby">能给出<b>完整时间段的样本外回测</b>、<b>能溯源</b>、<b>不吹年化神话</b>、<b>数据来源合法</b>的工具，才值得信。</div>
+</section>
+
+<!-- ============ 7 术语 ============ -->
+<section id="terms">
+<h2>7 · 术语小白翻译机<span class="sub">把吓人的词翻成人话</span></h2>
+<div class="grid">
+  <div class="card"><h4>情绪反向指标</h4>散户通常「在错误的时间最乐观」。社媒人人喊赚钱时市场常接近顶部，人人恐慌时常接近底部。AAII 散户情绪调查历史验证：2009年3月看空率创纪录 70.3%，随后却是十年大牛市起点。</div>
+  <div class="card"><h4>过拟合</h4>像学生把往年考题答案全背下来，模考满分，一上真考场（新题）就崩。模型在历史数据上调得太完美，其实记住了噪音，换时间段就失灵。</div>
+  <div class="card"><h4>回测</h4>拿策略到历史数据上「假装从过去开始操作」，看能赚多少、回撤多大。回测好≠未来一定好。</div>
+  <div class="card"><h4>夏普比率</h4>承担每一份风险换来多少收益（收益÷波动）。越高越好，>1 不错，>2 优秀，但警惕过拟合刷出来的虚高。</div>
+  <div class="card"><h4>最大回撤</h4>从最高点跌到最低谷最多亏百分之多少。回撤 50% = 账户曾腰斩。衡量「最难熬时有多痛」。</div>
+  <div class="card"><h4>护城河</h4>让对手打不进来的东西：品牌、专利、规模、网络效应。护城河越宽，公司越能长期赚钱。</div>
+  <div class="card"><h4>PEG</h4>市盈率 ÷ 盈利增长率。≤1 算便宜——为成长付的钱值不值的标尺。</div>
+  <div class="card"><h4>ATR / N值</h4>平均真实波幅，衡量某品种「正常波动有多大」。海龟用它做动态止损（2N），波动大的少买。</div>
+</div>
+</section>
+
+<!-- ============ 8 工具蓝图 ============ -->
+<section id="tool">
+<h2>8 · 你的「终极信息分析 + 给建议」工具蓝图<span class="sub">把前面所有拼图拼成一个能落地的产品</span></h2>
+<div class="card">
+<h3>五层架构（每层都有现成开源件可用）</h3>
+<div class="kv"><div class="k">① 数据层</div><div>行情/基本面：akshare、Tushare、Yahoo Finance；社媒：MediaCrawler（国内）+ snscrape/PRAW（海外）；新闻：RSS；视频字幕：yt-dlp。</div></div>
+<div class="kv"><div class="k">② 情绪层</div><div>中文 SnowNLP/重训模型 + 英文 FinBERT/VADER + LLM 兜底；输出「情绪温度计」并<b>按反向指标解读</b>（过热预警）。</div></div>
+<div class="kv"><div class="k">③ 信息融合层</div><div>把【消息面+基本面+宏观政策面+情绪面】拼成一张「信息拼图」喂给 AI。</div></div>
+<div class="kv"><div class="k">④ 决策层</div><div>仿 ai-hedge-fund/TradingAgents：<b>多个「投资大师 agent」按你选的门派投票</b>，给出方向、信心度、理由。</div></div>
+<div class="kv"><div class="k">⑤ 建议层（风控）</div><div>输出可执行方案：<b>买不买 / 仓位多少（如单笔风险≤2%）/ 何时买（突破信号）/ 何时卖（7-8%或2N止损 + 移动止盈）</b>，并标注它属于哪个门派的逻辑。</div></div>
+</div>
+<div class="note tip"><b>最省事的起步：</b> 直接 fork <code>TradingAgents-CN</code>（已带中文+A股+多agent），再把 <code>MediaCrawler</code> 的情绪数据接进它的「情绪分析师 agent」，门派规则写成不同的 system prompt。一周就能跑出 demo。</div>
+</section>
+
+<!-- ============ 9 互动 ============ -->
+<section id="advisor">
+<h2>9 · 互动 · 帮你选门派 & 看它会怎么给建议<span class="sub">本页内置小工具，纯演示，非投资建议</span></h2>
+
+<div class="advisor">
+  <h3 style="margin-top:0;">🧭 30 秒门派测试</h3>
+  <p style="color:var(--sub);">回答 3 个问题，看看哪个门派最像你：</p>
+  <div class="quiz" id="quiz">
+    <div><b>1. 你愿意花多少精力？</b>
+      <label><input type="radio" name="q1" value="low"> 几乎不想动脑，越省心越好</label>
+      <label><input type="radio" name="q1" value="mid"> 愿意每周做点功课</label>
+      <label><input type="radio" name="q1" value="high"> 我能天天盯盘、严格执行纪律</label>
+    </div>
+    <div style="margin-top:14px;"><b>2. 股票跌了 20%，你会？</b>
+      <label><input type="radio" name="q2" value="hold"> 如果公司还好，我加仓</label>
+      <label><input type="radio" name="q2" value="cut"> 早设了止损线，到了就走</label>
+      <label><input type="radio" name="q2" value="calm"> 我买的是指数/组合，不慌</label>
+    </div>
+    <div style="margin-top:14px;"><b>3. 你更想赚哪种钱？</b>
+      <label><input type="radio" name="q3" value="company"> 好公司长期成长的钱</label>
+      <label><input type="radio" name="q3" value="trend"> 强势股趋势上涨的钱</label>
+      <label><input type="radio" name="q3" value="market"> 整个市场长期上涨的钱</label>
+    </div>
+  </div>
+  <button onclick="runQuiz()">看看我适合哪派 →</button>
+  <div id="quizout"></div>
+
+  <hr style="border-color:var(--line);margin:24px 0;">
+  <h3>🎭 选个门派，看它会怎么给你建议</h3>
+  <select id="schoolSel">
+    <option value="value">价值投资派（巴菲特）</option>
+    <option value="growth">成长投资派（彼得·林奇）</option>
+    <option value="trend">趋势技术派（欧奈尔）</option>
+    <option value="turtle">海龟纪律派</option>
+    <option value="macro">全天候防守派（达里奥）</option>
+    <option value="index">指数被动派（博格）</option>
+  </select>
+  <button onclick="showStyle()">生成该门派的建议风格 →</button>
+  <div id="advout"></div>
+</div>
+</section>
+
+<!-- ============ 风险 ============ -->
+<section id="risk">
+<h2>⚠ 风险、合规与免责<span class="sub">这部分最重要，请务必读完</span></h2>
+<div class="note danger">
+<b>爬社媒数据的法律风险：</b><br>
+① 违反平台 ToS（X/抖音/小红书明令禁止未授权抓取，养号封号是常态）；<br>
+② 国内《数据安全法》《个人信息保护法》对爬取个人信息/登录态私域数据有严格限制，<b>爬取并转售可能涉刑</b>；<br>
+③ 新闻正文/付费文章有版权，优先用 RSS 摘要、Google Trends 等聚合公开数据；<br>
+④ 评论含个人信息需脱敏。<br>
+<b>降风险：优先官方 API（PRAW/StockTwits/YouTube/Telegram Bot）、聚合数据（akshare/pytrends/RSS）、尊重 robots.txt 和速率限制、只抓公开数据、不转售、商用前咨询法务。</b>
+</div>
+<div class="big-disclaimer">
+<b>📢 投资免责声明</b><br>
+本报告及任何基于舆情情绪的工具/模型，<b>仅为信息分析与研究参考，不构成投资建议</b>。情绪指标是概率性的，会给出错误信号、可能早到或晚到；任何单一指标都不可靠。<b>回测表现不代表未来收益，历史业绩不保证未来结果。</b>股票和加密资产波动极大、可能本金全损，加密市场尤其缺乏监管、操纵频发。所有列出的开源项目均声明「仅供研究」。<b>请独立判断、控制仓位、风险自负，必要时咨询持牌专业顾问。AI 是参谋，不是算命；先活下来，再谈赚大钱。</b>
+</div>
+</section>
+
+<footer>
+  <p>📄 AI 智能选股 + 舆情监控全景研究报告 · 生成于 2026-06-09</p>
+  <p>本文档由多智能体并行调研编排而成，所有 GitHub 项目真实可查，所有大师事实经 WebSearch 核对（标「已核实」者）。star 数为检索时量级，会变动。</p>
+  <p>核心来源：ai-hedge-fund / TradingAgents / FinGPT / qlib / MediaCrawler / FinBERT / AAII 情绪调查 / 维基百科及各大师传记 等。</p>
+</footer>
+</main>
+</div>
+
+<script>
+function runQuiz(){
+  const q1=(document.querySelector('input[name=q1]:checked')||{}).value;
+  const q2=(document.querySelector('input[name=q2]:checked')||{}).value;
+  const q3=(document.querySelector('input[name=q3]:checked')||{}).value;
+  const out=document.getElementById('quizout');
+  if(!q1||!q2||!q3){out.innerHTML='<div class="note warn">请把 3 个问题都选一下 🙂</div>';return;}
+  let res,why;
+  if(q1==='low'||q2==='calm'||q3==='market'){
+    res='⑥ 指数 / 被动派（博格）';
+    why='你追求省心和长期稳健——最适合「买宽基指数基金 + 定投 + 长期不动」。这也是巴菲特给普通人的建议，对绝大多数小白最友好。';
+  }else if(q1==='high'&&(q2==='cut'||q3==='trend')){
+    res='③ 趋势技术派 / ⑦ 海龟纪律派';
+    why='你有纪律也愿意盯盘——可走趋势派，但命门是严格止损（欧奈尔 7-8% 或海龟 2N）。务必先练「割肉不眨眼」，否则一次死扛会亏掉前面所有小赚。';
+  }else if(q2==='hold'||q3==='company'){
+    res='① 价值投资派 / ② 成长投资派';
+    why='你看重公司本身、愿意做功课——适合价值或成长投资：买看得懂的好公司，便宜了买、长期拿。注意分清「打折」和「公司真出事」。';
+  }else{
+    res='⑥ 指数被动派 + 一点 ④ 全天候分散';
+    why='你的答案偏稳健——建议以指数定投为主，再用债券/黄金做点达里奥式分散，平滑波动。';
+  }
+  out.innerHTML='<div class="note tip"><b>最像你的门派：'+res+'</b><br>'+why+'<br><span style="color:var(--sub);font-size:12px;">（纯演示推荐，不构成投资建议）</span></div>';
+}
+const styles={
+  value:{t:'价值投资派会这样跟你说：',b:['先别看 K 线，给我看这家公司的财报和护城河。','算出它值多少钱，等价格跌到「打 5 折」我才买（安全边际）。','买入后基本不设固定止损——跌了如果公司没变坏，反而加仓。','仓位可以集中在 3-5 家你最懂的好公司。','卖出时机：贵得离谱、或公司基本面变质了。']},
+  growth:{t:'成长投资派会这样跟你说：',b:['从你的生活里找线索：你天天用、周围都在买的产品。','查 PEG，市盈率÷增长率 ≤1 才算便宜。','别一涨就卖好股、一跌死扛烂股（拔花浇草是大忌）。','持有 5 只左右真懂的成长股。','卖出时机：成长故事讲完了、增速明显放缓。']},
+  trend:{t:'趋势技术派（欧奈尔）会这样跟你说：',b:['只买当下最强、放量创新高的股票，看 CAN SLIM 七条件。','买入后跌 7-8% 无条件卖出，绝不犹豫、不抱幻想。','止盈奔 20-25%，保持 3:1 盈亏比。','大盘转弱时减仓甚至空仓。','核心：纪律。会买更要会卖。']},
+  turtle:{t:'海龟纪律派会这样跟你说：',b:['价格突破过去 20 日最高点就买入，不预测只跟随。','每笔只拿总资金 2% 去冒险，按波动率(N=ATR)反推买多少。','止损 = 2N（2倍ATR）动态止损，跟着波动走。','顺向每涨 0.5N 加一个单位，让利润奔跑。','100% 机械执行规则，排除情绪。']},
+  macro:{t:'全天候防守派（达里奥）会这样跟你说：',b:['别预测涨跌，构建在任何经济天气都不大亏的组合。','股+债+黄金+商品做风险平价配置。','不靠止损，靠多元分散 + 定期再平衡控制回撤。','目标是稳健保值，不追求一年暴富。','适合怕大跌、求安心的长期资金。']},
+  index:{t:'指数被动派（博格）会这样跟你说：',b:['承认选不出牛股，干脆买下整个市场（标普500/沪深300）。','每月定投固定金额，不管涨跌摊平成本。','省下的每分手续费都是你的收益——选低费率指数基金。','几乎不卖，长期持有 10-20 年靠复利。','核心纪律就两个字：别动。']}
+};
+function showStyle(){
+  const k=document.getElementById('schoolSel').value;const s=styles[k];
+  document.getElementById('advout').innerHTML='<div class="note info"><b>'+s.t+'</b><ul style="margin:8px 0;">'+s.b.map(x=>'<li>'+x+'</li>').join('')+'</ul><span style="color:var(--sub);font-size:12px;">（门派风格演示，不构成投资建议）</span></div>';
+}
+showStyle();
+</script>
+</body>
+</html>

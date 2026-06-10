@@ -1,0 +1,36 @@
+# ===== 依赖与构建产物 =====
+**/node_modules/
+**/dist/
+**/dist-ssr/
+polaris-app/src-tauri/target/
+polaris-app/src-tauri/gen/schemas/
+
+# ===== Python 采集器 =====
+**/__pycache__/
+*.pyc
+data-pipeline/data/
+data-pipeline/output/
+# 采集出的前端静态数据(运行时生成)
+polaris-app/public/sentio/*.json
+
+# ===== 日志/截图/临时 =====
+*.log
+.dev-*.log
+.shot-*.png
+.docker-*.log
+_crop_*.png
+polaris-app/src-tauri/sentio-icon-src.png
+
+# ===== 环境与密钥(绝不上传) =====
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+
+# ===== 编辑器/系统 =====
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.local
