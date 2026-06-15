@@ -1,0 +1,62 @@
+# ─────────────────────────────────────────────────────────────
+# 发版 + 自动更新产物发布（Windows）
+# 打一个 v* 标签（如 v0.1.1）推上来，就会在 Windows runner 上构建、
+# 用更新私钥（minisign）签名，并把 NSIS 安装包 + .sig + latest.json 上传到同一个 GitHub Release。
+# 应用端从 releases/latest/download/latest.json 检查更新，对上 pubkey 即可自动升级。
+#
+#   Windows → NSIS 安装包 (ZhiTouGu_<ver>_x64-setup.exe) + .sig + latest.json
+#
+# 需要在仓库 Settings → Secrets and variables → Actions 配置：
+#   TAURI_SIGNING_PRIVATE_KEY           = 更新私钥文件全文（单行）
+#   TAURI_SIGNING_PRIVATE_KEY_PASSWORD  = 私钥密码
+#   POLARIS_GIFT_MINIMAX_KEY            =（可选）「粉丝福利」MiniMax key；缺省则礼物功能无 key，不影响构建
+#
+# 应用是单平台（Windows / nsis），单个构建 job 不会出现多平台并行 clobber latest.json 的坑，
+# 故无需额外的合并清单 job —— tauri-action 自己上传的 latest.json 即可用。
+# ─────────────────────────────────────────────────────────────
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  release:
+    permissions:
+      contents: write
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: polaris-app/src-tauri
+
+      - name: Install frontend deps
+        working-directory: polaris-app
+        run: npm install
+
+      - name: Build, sign & publish release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          POLARIS_GIFT_MINIMAX_KEY: ${{ secrets.POLARIS_GIFT_MINIMAX_KEY }}
+        with:
+          projectPath: polaris-app
+          tagName: ${{ github.ref_name }}
+          releaseName: "智投顾 ${{ github.ref_name }}"
+          releaseBody: "查看 CHANGELOG 或提交记录了解本次更新内容。"
+          releaseDraft: false
+          prerelease: false
+          args: "--bundles nsis"

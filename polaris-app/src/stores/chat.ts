@@ -9,7 +9,6 @@ import {
   type PermissionMode,
 } from "../tauri";
 import { useAppStore } from "./app";
-import { useSessionsStore } from "../features/coworker/stores/sessions";
 
 export interface Bubble {
   role: "user" | "assistant" | "tool";
@@ -139,7 +138,6 @@ export const useChatStore = defineStore("chatRuntime", () => {
       batchSize?: number;
     }
   ) {
-    const sessions = useSessionsStore();
     const arr = ensureArr(convId);
     arr.push({
       role: "user",
@@ -148,7 +146,6 @@ export const useChatStore = defineStore("chatRuntime", () => {
     });
     sendingByConv.value[convId] = true;
     touchActivity(convId);
-    sessions.start(convId, displayText.slice(0, 18));
     try {
       const reqId = await chatApi.send({
         prompt,
@@ -165,14 +162,12 @@ export const useChatStore = defineStore("chatRuntime", () => {
     } catch (e: any) {
       arr.push({ role: "assistant", text: `[发送失败] ${e?.message ?? e}` });
       sendingByConv.value[convId] = false;
-      sessions.finish(convId);
       wakeWaiters(convId); // 否则分批循环 await 永挂
     }
   }
 
   async function cancel(convId: string | null) {
     if (!convId) return;
-    const sessions = useSessionsStore();
     const req = reqByConv.value[convId];
     if (req) {
       try {
@@ -184,7 +179,6 @@ export const useChatStore = defineStore("chatRuntime", () => {
     sendingByConv.value[convId] = false;
     delete reqByConv.value[convId];
     touchActivity(convId);
-    sessions.finish(convId);
     wakeWaiters(convId); // 取消后唤醒分批循环, 让它看到 !isRunning 自行收尾
   }
 
@@ -239,8 +233,6 @@ export const useChatStore = defineStore("chatRuntime", () => {
         // 标记 loaded 防止之后切回时 loadHistory 用后端副本覆盖、丢掉这些气泡。
         loadedByConv.value[cid] = true;
         const app = useAppStore();
-        const sessions = useSessionsStore();
-        sessions.finish(cid);
         app.markUnread(cid);
         // 唤醒分批编排循环：本轮已结束，可读清单决定续不续
         wakeWaiters(cid);

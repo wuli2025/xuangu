@@ -30,8 +30,6 @@ import {
   Trash2,
   Check,
   Workflow,
-  PanelRightOpen,
-  PanelRightClose,
   BookOpen,
   Layers,
   Hand,
@@ -83,9 +81,8 @@ const chatStore = useChatStore();
 const workflowsStore = useWorkflowsStore();
 const longTaskStore = useLongTaskStore();
 
-/** 点击成品文件 chip → 展开右侧抽屉并预览 */
+/** 点击成品文件 chip → 记录当前选中（高亮 chip） */
 function openArtifact(path: string) {
-  app.drawerCollapsed = false;
   artifactsStore.open(path);
 }
 
@@ -711,17 +708,6 @@ async function deleteCurrentConv() {
           <span>{{ copied }}</span>
         </div>
       </Transition>
-      <button
-        class="drawer-toggle"
-        :title="app.drawerCollapsed ? '展开文件抽屉' : '收起文件抽屉'"
-        @click="app.toggleDrawer()"
-      >
-        <component
-          :is="app.drawerCollapsed ? PanelRightOpen : PanelRightClose"
-          :size="17"
-          :stroke-width="1.7"
-        />
-      </button>
     </div>
 
     <div class="messages" ref="scrollEl">
@@ -1149,25 +1135,6 @@ async function deleteCurrentConv() {
   font-weight: 400;
   color: var(--muted);
 }
-/* 文件抽屉开关（移到顶栏右侧；收起后右侧整列消失，靠它再展开） */
-.drawer-toggle {
-  width: 30px;
-  height: 30px;
-  border: none;
-  border-radius: 7px;
-  background: transparent;
-  color: var(--muted);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  transition: background 0.15s, color 0.15s;
-}
-.drawer-toggle:hover {
-  background: var(--selection-bg);
-  color: var(--text);
-}
-
 /* 已置顶标记（标题前的小别针） */
 .t-pin {
   color: var(--gold);

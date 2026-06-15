@@ -23,7 +23,6 @@ export const useAppStore = defineStore("app", () => {
     view.value = "report";
   }
   const sidebarCollapsed = ref(false);
-  const drawerCollapsed = ref(false);
 
   // 置顶对话：仅前端持久化（localStorage），侧栏排序时置顶优先
   const PINNED_KEY = "polaris.pinnedConvs.v1";
@@ -84,13 +83,8 @@ export const useAppStore = defineStore("app", () => {
   function toggleSidebar() {
     sidebarCollapsed.value = !sidebarCollapsed.value;
   }
-  function toggleDrawer() {
-    drawerCollapsed.value = !drawerCollapsed.value;
-  }
 
   const sidebarWidth = computed(() => (sidebarCollapsed.value ? 48 : 260));
-  // 收起后右抽屉完全消失（0 宽，不留小框/导轨）；需要时点对话顶栏的抽屉按钮或生成产物自动展开
-  const drawerWidth = computed(() => (drawerCollapsed.value ? 0 : 300));
 
   // MCP 配置弹窗（全局状态，Sidebar 与 App 共用）
   const showMcpModal = ref(false);
@@ -211,13 +205,10 @@ export const useAppStore = defineStore("app", () => {
     sentioStock,
     openReport,
     sidebarCollapsed,
-    drawerCollapsed,
     sidebarWidth,
-    drawerWidth,
     showMcpModal,
     setView,
     toggleSidebar,
-    toggleDrawer,
     unreadConvs,
     markUnread,
     clearUnread,

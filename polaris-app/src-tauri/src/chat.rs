@@ -891,6 +891,12 @@ fn spawn_on_host(prompt: &str, perm: &str, art_dir: &Path, with_task: bool) -> R
     // 子进程环境净化: loopback 强制 NO_PROXY (切 Codex 时 claude 走 127.0.0.1 本地代理,
     // 系统代理会劫持回环 → 连不上) + 清 DEBUG/LD_PRELOAD。见 doctor::harden_child_env。
     crate::doctor::harden_child_env(&mut cmd);
+    // 与外部 cc 隔离(双保险): 强制子 claude 用 App 私有配置目录 ~/ZhiTouGu/.claude(供应商/鉴权/
+    // 用量都在这), 既不碰也不被全局 ~/.claude 影响。provider::init 已设进程 env, 这里再显式喂一次,
+    // 让 spawn 不依赖 init 时序、即便 App 是从带 CLAUDE_CONFIG_DIR 的宿主 cc 终端拉起也仍走私有目录。
+    if let Some(cfg_dir) = crate::provider::app_claude_config_dir() {
+        cmd.env("CLAUDE_CONFIG_DIR", &cfg_dir);
+    }
     no_window(&mut cmd); // 隐藏式: 每次发消息不再弹出黑色终端窗口
 
     // Linux/容器: 让 claude 成为新进程组的组长 (setpgid)。这样 kill_tree 的

@@ -1,11 +1,16 @@
 //! 板块 ⑥ API 供应商坞 — Claude Code 供应商切换 + token 用量/成本看板
 //!
 //! 剥离自 cc-switch 的 Claude 供应商能力, 与 Polaris 墨蓝水墨前端融为一体。
+//! ⚠️ 与外部 cc 隔离: 本模块所有 `~/.claude` 操作都重定向到 App 私有目录
+//!    `~/ZhiTouGu/.claude`(见 `app_claude_config_dir` / `claude_dir`), 经进程
+//!    `CLAUDE_CONFIG_DIR` 让 spawn 的 claude 也读这份私有配置 —— 切换供应商 / 填 key /
+//!    统计用量都不碰用户终端里那份全局 `~/.claude`, 互不污染。下文路径注释里的
+//!    `~/.claude` 均指这份私有副本。
 //! - 每个供应商携带一份完整 `settings_config`(env + includeCoAuthoredBy/attribution
-//!   等顶层键)。切换 = 把它合并写进 `~/.claude/settings.json`(只接管我们管理的键,
+//!   等顶层键)。切换 = 把它合并写进私有 `settings.json`(只接管我们管理的键,
 //!   其余原样保留;首次改动前 .polaris.bak 备份)。Polaris 每次 spawn `claude` 重读
 //!   settings, 故下一条消息即生效。
-//! - 用量看板: 读 `~/.claude/projects/**/*.jsonl`(ccusage 思路), 聚合 token + 按内置
+//! - 用量看板: 读私有 `projects/**/*.jsonl`(ccusage 思路), 聚合 token + 按内置
 //!   定价表估算成本, 今日/周/月/年 + 14 天趋势。零额外网络、零额外依赖。
 //! - Codex / Copilot: 说 OpenAI 协议, 让 `claude` 直连需翻译代理(cc-switch 的 proxy/,
 //!   1.5MB+), 与轻量化冲突 → 不路由。Codex 授权委托官方 `codex` CLI。
@@ -270,6 +275,11 @@ fn seed_gift_minimax(store: &mut Store, data_dir: &Path) -> bool {
         token_field: DEFAULT_TOKEN_FIELD.to_string(),
         settings_config: cfg,
     });
+    // 全新用户(尚无任何选择)直接默认到粉丝福利 key —— 隔离后私有目录无全局配置可兜底,
+    // 不自动选则首聊会因「官方未登录」失败, 与「开箱即用」承诺相悖。已有选择的老用户不动。
+    if store.current_id.is_empty() {
+        store.current_id = "minimax".to_string();
+    }
     true
 }
 
@@ -318,6 +328,15 @@ fn codex_route_config(port: u16) -> Value {
 }
 
 pub fn init(_app: &AppHandle) -> Result<()> {
+    // ── 与外部 cc 隔离(第一件事) ──
+    // 强制本 App 进程及其 spawn 的所有 claude 子进程都用私有配置目录 ~/ZhiTouGu/.claude,
+    // 而非全局 ~/.claude(那是用户终端里外部 Claude Code 的配置)。一次设进程 env, 子进程继承;
+    // 供应商切换 / 鉴权 / 用量 jsonl 全部落私有目录, 与母体互不污染。
+    if let Some(cfg_dir) = app_claude_config_dir() {
+        let _ = fs::create_dir_all(&cfg_dir);
+        std::env::set_var("CLAUDE_CONFIG_DIR", &cfg_dir);
+    }
+
     let user = UserDirs::new().ok_or_else(|| anyhow::anyhow!("no user dir"))?;
     let dir = user.home_dir().join("ZhiTouGu").join("data");
     fs::create_dir_all(&dir)?;
@@ -396,14 +415,42 @@ pub fn init(_app: &AppHandle) -> Result<()> {
         persist();
     }
 
-    // 若上次退出时正路由到 Codex(本地代理), 重启后端口可能变 → 重新拉起代理并校正
-    // ANTHROPIC_BASE_URL, 否则 settings.json 里残留的旧端口会让 claude 连不上。
+    // ── 启动期把「已选供应商」重建进私有 settings.json ──
+    // 私有目录是独立的、不继承全局 ~/.claude, 故每次启动按 providers.json(本 App 自有、已隔离的
+    // 存储)里的当前选择重新套用一次: ① 选择跨重启稳定保持(私有 settings 空时 detect_current
+    // 认不出选择, 必须按 current_id 重建); ② 粉丝福利 key 开箱即用; ③ 先清掉可能从「拉起 App 的
+    // 终端」继承来的受管 env(那是宿主 cc 的环境变量), 杜绝外部环境串入。Codex 还要重连本地代理
+    // (重启后端口会变, 残留旧端口会让 claude 连不上)。
     {
         let store = STORE.read().clone();
         let views = build_views(&store);
-        if detect_current(&views, &store) == "codex" {
-            if let Ok(port) = crate::codex_proxy::ensure_running() {
-                let _ = apply_settings_config(&codex_route_config(port));
+        let cur_id = if store.current_id.is_empty() {
+            "claude-official".to_string()
+        } else {
+            store.current_id.clone()
+        };
+        // 先无条件清受管键: 即便当前是官方/无 key, 也不让终端继承来的 ANTHROPIC_* 漏给子 claude。
+        for k in MANAGED_ENV_KEYS {
+            std::env::remove_var(k);
+        }
+        if let Some(v) = views.iter().find(|v| v.id == cur_id) {
+            let cfg: Option<Value> = match v.kind.as_str() {
+                "codex" => crate::codex_proxy::ensure_running().ok().map(codex_route_config),
+                "official" => Some(json!({ "env": {} })),
+                "copilot" => None, // 不路由
+                // key 类: 有 token 才套用(空 key 留待用户在坞里填)
+                _ => (!v.auth_token.trim().is_empty()).then(|| v.settings_config.clone()),
+            };
+            if let Some(cfg) = cfg {
+                let _ = apply_settings_config(&cfg);
+                // 同步进程 env: spawn 的 claude 继承父进程 env 且通常优先于 settings.json, 一并写上。
+                if let Some(src_env) = cfg.get("env").and_then(|e| e.as_object()) {
+                    for (k, val) in src_env {
+                        if let Some(s) = val.as_str() {
+                            std::env::set_var(k, s);
+                        }
+                    }
+                }
             }
         }
     }
@@ -631,8 +678,16 @@ fn detect_current(views: &[ProviderView], store: &Store) -> String {
 
 // ───────────────────────── ~/.claude/settings.json 读写 ─────────────────────────
 
+/// 本 App 私有的 Claude 配置目录 —— 与宿主机全局 `~/.claude`(外部 Claude Code / 终端 cc 用的
+/// 那份)**彻底隔离**。供应商切换、settings.json、鉴权、用量 jsonl 全部落这里, 互不串扰:
+/// 在 App 里换供应商 / 填 key 不会改到用户终端 cc 的配置, 反之亦然。
+/// 路径与 App 其它数据同根: `~/ZhiTouGu/.claude`。`init()` 会把它设进进程 `CLAUDE_CONFIG_DIR`,
+/// spawn 出去的每个 claude 子进程因此都读这份私有配置(chat.rs 再显式 env 一次做双保险)。
+pub(crate) fn app_claude_config_dir() -> Option<PathBuf> {
+    UserDirs::new().map(|u| u.home_dir().join("ZhiTouGu").join(".claude"))
+}
 fn claude_dir() -> Option<PathBuf> {
-    UserDirs::new().map(|u| u.home_dir().join(".claude"))
+    app_claude_config_dir()
 }
 fn claude_settings_path() -> Option<PathBuf> {
     claude_dir().map(|d| d.join("settings.json"))
