@@ -3,6 +3,8 @@ import { onMounted, ref, computed } from "vue";
 import {
   Activity,
   Radar,
+  TrendingUp,
+  Waves,
   FileText,
   MessagesSquare,
   Library,
@@ -36,6 +38,8 @@ type NavItem = { key: typeof app.view; label: string; icon: any };
 const primaryNav: NavItem[] = [
   { key: "board", label: "舆情看板", icon: Activity },
   { key: "radar", label: "选股雷达", icon: Radar },
+  { key: "strategy", label: "建议策略", icon: TrendingUp },
+  { key: "fib", label: "斐波选股", icon: Waves },
   { key: "report", label: "个股报告", icon: FileText },
 ];
 // 收纳进「更多」的次要项（仅保留基础设施：更新 / 环境 / 设置）

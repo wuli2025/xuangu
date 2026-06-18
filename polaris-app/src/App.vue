@@ -14,6 +14,8 @@ const UpdatePanel = defineAsyncComponent(() => import("./components/UpdatePanel.
 // ── 智投顾三屏：舆情看板 / 选股雷达 / 个股报告 ──
 const SentioBoard = defineAsyncComponent(() => import("./components/sentio/SentioBoard.vue"));
 const SentioRadar = defineAsyncComponent(() => import("./components/sentio/SentioRadar.vue"));
+const SentioStrategy = defineAsyncComponent(() => import("./components/sentio/SentioStrategy.vue"));
+const SentioFib = defineAsyncComponent(() => import("./components/sentio/SentioFib.vue"));
 const SentioReport = defineAsyncComponent(() => import("./components/sentio/SentioReport.vue"));
 import { useAppStore } from "./stores/app";
 import { useProvidersStore } from "./stores/providers";
@@ -43,6 +45,8 @@ const layoutCols = computed(() => `${app.sidebarWidth}px 1fr`);
     <main class="main">
       <SentioBoard v-if="mountedView === 'board'" @open-report="app.openReport" />
       <SentioRadar v-else-if="mountedView === 'radar'" @open-report="app.openReport" />
+      <SentioStrategy v-else-if="mountedView === 'strategy'" @open-report="app.openReport" />
+      <SentioFib v-else-if="mountedView === 'fib'" @open-report="app.openReport" />
       <SentioReport v-else-if="mountedView === 'report'" />
       <ChatPanel v-else-if="mountedView === 'chat'" />
       <EnvDoctor v-else-if="mountedView === 'env_doctor'" />

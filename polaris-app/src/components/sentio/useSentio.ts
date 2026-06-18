@@ -1,6 +1,7 @@
 // SENTIO 三视图共享：数据加载 + 颜色/档位/机会分等纯函数。
 // 数据来自 data-pipeline 采集器写入的 public/sentio/*.json（Vite 映射到根路径）。
 import { ref } from "vue";
+import { invoke, listen, isTauri } from "../../tauri";
 
 export interface Breakdown {
   热度H: number;
@@ -39,6 +40,271 @@ export interface Board {
   cold: string[];
   ranked: StockRec[];
   updated_at: string;
+}
+
+// ── 建议策略（strategy.json）数据模型 ──
+export interface Radar {
+  动量: number;
+  趋势: number;
+  资金: number;
+  低波: number;
+  情绪: number;
+}
+export interface Pick {
+  code: string;
+  name: string;
+  sector: string;
+  score: number;
+  radar: Radar;
+  temp: number;
+  rsi: number;
+  entry: number;
+  stop: number;
+  stop_pct: number;
+  target: number;
+  target_pct: number;
+  weight: number;
+  reason: string;
+}
+export interface BacktestPoint {
+  date: string;
+  strat: number;
+  bench: number;
+}
+export interface Backtest {
+  months: number;
+  monthly_mean: number;
+  monthly_std: number;
+  total_return: number;
+  cagr: number;
+  vol_ann: number;
+  sharpe: number;
+  win_rate: number;
+  max_drawdown: number;
+  bench_total: number;
+  curve: BacktestPoint[];
+  params: Record<string, string | number>;
+  sensitivity?: { lookback: number; topk: number; cagr: number }[];
+}
+export interface Mode {
+  key: string;
+  lookback: number;
+  topk: number;
+  desc: string;
+  months: number;
+  cagr: number;
+  monthly_mean: number;
+  monthly_std: number;
+  win_rate: number;
+  max_drawdown: number;
+  sharpe: number;
+  p_hit: number;
+  p_lose: number;
+}
+export interface Achiever {
+  achieved: boolean;
+  config_text: string;
+  freq: string;
+  lookback: number;
+  topk: number;
+  leverage: number;
+  monthly_mean: number;
+  cagr: number;
+  win_rate: number;
+  max_drawdown: number;
+  sharpe: number;
+  p_hit: number;
+  p_lose: number;
+  months: number;
+}
+export interface TargetSummary {
+  target_monthly: number;
+  best_mode: string;
+  best_monthly_mean: number;
+  p_hit: number;
+  p_lose: number;
+  feasible: boolean;
+  verdict: string;
+  achiever: Achiever | null;
+  honest_note: string;
+}
+export interface RankedRow {
+  code: string;
+  name: string;
+  sector: string;
+  score: number;
+  mom60: number | null;
+  rsi: number;
+  temp: number;
+}
+export interface Strategy {
+  date: string;
+  universe: number;
+  scored: number;
+  failed: string[];
+  weights: Record<string, number>;
+  market: {
+    cash_pct: number;
+    stance: string;
+    market_level: string | null;
+    market_temp: number | null;
+  };
+  expectation: {
+    base_monthly: number;
+    range_low: number;
+    range_high: number;
+    invested_pct: number;
+    note: string;
+  } | null;
+  modes: Mode[] | null;
+  target: TargetSummary | null;
+  picks: Pick[];
+  ranked: RankedRow[];
+  backtest: Backtest | null;
+  disclaimer: string;
+  updated_at: string;
+}
+
+// ── 斐波那契趋势策略（fib_strategy.json）数据模型 ──
+export interface FibPooled {
+  trades: number;
+  win_rate: number;
+  avg_win_pct: number;
+  avg_loss_pct: number;
+  payoff_ratio: number | null;
+  profit_factor: number | null;
+  expectancy_pct: number;
+  expectancy_r: number;
+  avg_bars: number;
+  max_win_pct: number;
+  max_loss_pct: number;
+  kelly_pct: number;
+  exit_reasons: Record<string, number>;
+}
+export interface FibPortfolioPoint {
+  date: string;
+  strat: number;
+  bench: number;
+}
+export interface FibPortfolio {
+  start: string;
+  end: string;
+  years: number;
+  total_return: number;
+  cagr: number;
+  max_drawdown: number;
+  vol_ann: number;
+  sharpe: number;
+  bench_total: number;
+  bench_cagr: number;
+  bench_mdd: number;
+  excess: number;
+  max_concurrent: number;
+  curve: FibPortfolioPoint[];
+}
+export interface FibParamRow {
+  k: number;
+  m: number;
+  trades: number;
+  win_rate: number;
+  payoff: number | null;
+  profit_factor: number | null;
+  expectancy_r: number;
+}
+export interface FibSlopeRow {
+  require_slope: boolean;
+  trades: number;
+  win_rate: number;
+  profit_factor: number | null;
+  expectancy_r: number;
+}
+export interface FibVerdict {
+  effective: boolean;
+  headline: string;
+  profit_factor?: number;
+  expectancy_r?: number;
+  excess?: number;
+}
+export interface FibHist {
+  trades: number;
+  win_rate: number;
+  expectancy_r: number;
+  profit_factor: number | null;
+}
+export interface FibCandidate {
+  code: string;
+  name: string;
+  sector: string;
+  state: "fresh_entry" | "holding" | "watch";
+  reason: string;
+  close: number;
+  entry: number;
+  fib_stop: number;
+  fib_stop_pct: number;
+  fib_k: number;
+  trail_ma: number;
+  trail_ma_label: string;
+  dist_to_ma_pct: number;
+  atr_pct: number;
+  ema_gap_pct: number;
+  suggest_pos_pct: number;
+  above_slow: boolean;
+  temp: number | null;
+  hist: FibHist | null;
+}
+export interface FibStrategy {
+  date: string;
+  engine: string;
+  universe: number;
+  scanned: number;
+  failed: string[];
+  config: {
+    n1: number;
+    n2: number;
+    m: number;
+    k: number;
+    label: string;
+    kelly_fraction: number;
+    risk_per_trade: number;
+    require_slope: boolean;
+    cost_roundtrip: number;
+  };
+  validation: {
+    pooled: FibPooled | null;
+    portfolio: FibPortfolio | null;
+    param_matrix: FibParamRow[];
+    slope_compare: FibSlopeRow[];
+    verdict: FibVerdict;
+  };
+  candidates: FibCandidate[];
+  fresh_count: number;
+  rules: { entry: string; stop: string; exit: string; size: string };
+  disclaimer: string;
+  updated_at: string;
+}
+
+export async function loadFib(): Promise<FibStrategy | null> {
+  try {
+    const r = await fetch(`${import.meta.env.BASE_URL || "/"}sentio/fib_strategy.json?t=${Date.now()}`);
+    if (!r.ok) return null;
+    return (await r.json()) as FibStrategy;
+  } catch {
+    return null;
+  }
+}
+
+/** 触发一次斐波那契选股（取价+回测+寻优+今日选股）。进度走 fib:progress / fib:done。 */
+export async function runFib(codes?: string[]): Promise<string> {
+  if (!isTauri) {
+    throw new Error("「斐波检查」需在桌面端运行（本机 Python 取价回测）");
+  }
+  return invoke<string>("fib_run", codes && codes.length ? { codes } : {});
+}
+export function onFibProgress(cb: (p: SentioProgress) => void) {
+  return listen<SentioProgress>("fib:progress", cb);
+}
+export function onFibDone(cb: (d: SentioDone) => void) {
+  return listen<SentioDone>("fib:done", cb);
 }
 
 const BASE = import.meta.env.BASE_URL || "/";
@@ -167,4 +433,48 @@ export function adviceOf(r: StockRec): {
 // 简单的「最近一次加载时间」展示
 export function useUpdatedAt() {
   return ref<string>("");
+}
+
+export async function loadStrategy(): Promise<Strategy | null> {
+  try {
+    const r = await fetch(`${BASE}sentio/strategy.json?t=${Date.now()}`);
+    if (!r.ok) return null;
+    return (await r.json()) as Strategy;
+  } catch {
+    return null;
+  }
+}
+
+// ── 「立即检查」：调起本机 python 采集 + 多因子策略 + 回测 ──
+export interface SentioProgress {
+  line: string;
+  pct: number;
+}
+export interface SentioDone {
+  ok: boolean;
+  code: number;
+  message: string;
+}
+
+/** 触发一次采集分析。返回 "started"；进度/结果走事件。非 Tauri 环境抛错。 */
+export async function runCheck(codes?: string[]): Promise<string> {
+  if (!isTauri) {
+    throw new Error("「立即检查」需在桌面端运行（本机 Python 采集）");
+  }
+  return invoke<string>("sentio_run", codes && codes.length ? { codes } : {});
+}
+
+export function onCheckProgress(cb: (p: SentioProgress) => void) {
+  return listen<SentioProgress>("sentio:progress", cb);
+}
+export function onCheckDone(cb: (d: SentioDone) => void) {
+  return listen<SentioDone>("sentio:done", cb);
+}
+
+// 评分 → 颜色（达人评分 0-100：高分暖金，低分冷蓝）
+export function scoreColor(s: number): string {
+  if (s >= 80) return "#ffcf6b";
+  if (s >= 60) return "#00e69a";
+  if (s >= 40) return "#33e0ff";
+  return "#8a93a8";
 }

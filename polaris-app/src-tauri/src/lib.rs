@@ -21,6 +21,9 @@ pub mod wecom;
 // 自动更新依赖 Tauri updater/restart/package_info → 桌面专属（Docker 用 docker pull 更新）。
 #[cfg(feature = "desktop")]
 pub mod updater;
+// SENTIO 选股达人「立即检查」: spawn 本机 python 采集分析管道 → 桌面专属。
+#[cfg(feature = "desktop")]
+pub mod sentio;
 
 // ── Docker(server) 外壳：shim AppHandle + axum HTTP/WS 服务 ──
 #[cfg(feature = "server")]
@@ -213,6 +216,10 @@ pub fn run() {
             updater::updater_get_state,
             updater::updater_check,
             updater::updater_apply,
+            // SENTIO 选股达人「立即检查」: 跑采集 + 多因子策略 + 回测
+            sentio::sentio_run,
+            // 斐波那契趋势选股「斐波检查」: 取价 + 事件回测 + 参数寻优 + 今日选股
+            sentio::fib_run,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Polaris application")
