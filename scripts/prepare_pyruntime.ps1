@@ -19,6 +19,9 @@ param(
   [string]$PyVersion  = "3.12.7"      # CPython 版本
 )
 $ErrorActionPreference = "Stop"
+# 内置 python 自检会 print 中文；CI 控制台是 cp1252(charmap)→ 不强制 UTF-8 会 UnicodeEncodeError 退1。
+$env:PYTHONUTF8 = "1"
+$env:PYTHONIOENCODING = "utf-8"
 
 $repo     = Split-Path -Parent $PSScriptRoot
 $pipeline = Join-Path $repo "data-pipeline"
