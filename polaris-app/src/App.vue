@@ -4,6 +4,7 @@ import { computed, onMounted, defineAsyncComponent } from "vue";
 import Sidebar from "./components/Sidebar.vue";
 import ChatPanel from "./components/ChatPanel.vue";
 import EnvDoctor from "./components/EnvDoctor.vue"; // env_doctor 视图
+import UpdateBanner from "./components/UpdateBanner.vue"; // 全局自动更新提示（发现新版即弹）
 // ── 非首屏视图：懒加载，切到对应视图时才拉各自 chunk ──
 const Settings = defineAsyncComponent(() => import("./components/Settings.vue"));
 const AddProviderModal = defineAsyncComponent(() => import("./components/AddProviderModal.vue"));
@@ -78,6 +79,9 @@ const layoutCols = computed(() => `${app.sidebarWidth}px 1fr`);
 
     <!-- MCP 配置对话框（触发器已移到 Sidebar 导航栏下方） -->
     <McpConfigModal v-if="app.showMcpModal" @close="app.showMcpModal = false" />
+
+    <!-- 全局自动更新提示：启动检测到新版本时，任何页面都会自动弹出（更新 tab 内已自带卡片，故排除） -->
+    <UpdateBanner v-if="mountedView !== 'update'" />
   </div>
 </template>
 
