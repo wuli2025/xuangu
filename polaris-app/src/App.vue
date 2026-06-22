@@ -21,6 +21,7 @@ import { useAppStore } from "./stores/app";
 import { useProvidersStore } from "./stores/providers";
 import { useChatStore } from "./stores/chat";
 import { useWorkflowsStore } from "./stores/workflows";
+import { checkForUpdate } from "./composables/useUpdater";
 
 const app = useAppStore();
 const providers = useProvidersStore();
@@ -33,6 +34,9 @@ const mountedView = computed(() => app.view);
 // 智投顾：无进场动画、无启动自动更新检查（避免无 release 时报错），开窗直达主界面。
 onMounted(() => {
   chatStore.init();
+  // 开机静默检查远程更新（GitHub Releases / latest.json）。无网络/无 release/非 Tauri 时静默吞掉，
+  // 发现新版本由 Rust 状态机推送，UpdateBanner/UpdatePanel 自动提示「有更新待装」。
+  checkForUpdate();
   // URL 深链：?view=fib 直达对应视图（便于直接打开某屏 / 截图 / 外部跳转）
   try {
     const v = new URLSearchParams(location.search).get("view");
