@@ -21,9 +21,11 @@ jobs:
         include:
           - target: aarch64-apple-darwin   # Apple Silicon (M 系列)
             arch: arm64
+            os: macos-latest               # 原生 arm64
           - target: x86_64-apple-darwin    # Intel
             arch: x64
-    runs-on: macos-latest
+            os: macos-13                   # 原生 Intel(避免在 arm64 上跨架构签名失败)
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
