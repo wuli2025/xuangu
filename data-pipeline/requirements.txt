@@ -3,3 +3,7 @@
 akshare>=1.16.0
 pandas>=2.2.0,<3.1.0
 numpy>=1.26.0,<3.0.0
+
+# 券商对接(可选,仅真实盘需要;Windows + 已登录券商客户端)。不装则账户页只用模拟盘 SimAdapter，
+# 全流程照常可跑。需真实盘时:pip install easytrader
+# easytrader>=0.23.0

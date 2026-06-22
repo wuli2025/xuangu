@@ -225,6 +225,8 @@ pub fn run() {
             // 自选股 / 持仓配置读写(账户管理基座)
             sentio::diag_config_read,
             sentio::diag_config_write,
+            // 券商对接(easytrader): 账户快照/同步持仓/下单(默认确认,过风控三闸)
+            sentio::broker_cmd,
             // 读脚本产出的前端 JSON(打包态读 app-data 可写副本,开发态读仓库 public/sentio)
             sentio::sentio_read,
         ])

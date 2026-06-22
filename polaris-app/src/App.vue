@@ -17,6 +17,7 @@ const SentioRadar = defineAsyncComponent(() => import("./components/sentio/Senti
 const SentioStrategy = defineAsyncComponent(() => import("./components/sentio/SentioStrategy.vue"));
 const SentioFib = defineAsyncComponent(() => import("./components/sentio/SentioFib.vue"));
 const SentioDiagnose = defineAsyncComponent(() => import("./components/sentio/SentioDiagnose.vue"));
+const SentioAccount = defineAsyncComponent(() => import("./components/sentio/SentioAccount.vue"));
 const SentioReport = defineAsyncComponent(() => import("./components/sentio/SentioReport.vue"));
 const SentioSources = defineAsyncComponent(() => import("./components/sentio/SentioSources.vue"));
 import { useAppStore } from "./stores/app";
@@ -42,7 +43,7 @@ onMounted(() => {
   // URL 深链：?view=fib 直达对应视图（便于直接打开某屏 / 截图 / 外部跳转）
   try {
     const v = new URLSearchParams(location.search).get("view");
-    const allowed = ["board", "radar", "strategy", "fib", "diagnose", "report", "sources", "env_doctor", "update", "settings"];
+    const allowed = ["board", "radar", "strategy", "fib", "diagnose", "account", "report", "sources", "env_doctor", "update", "settings"];
     if (v && allowed.includes(v)) app.view = v as typeof app.view;
   } catch {
     /* ignore */
@@ -62,6 +63,7 @@ const layoutCols = computed(() => `${app.sidebarWidth}px 1fr`);
       <SentioStrategy v-else-if="mountedView === 'strategy'" @open-report="app.openReport" />
       <SentioFib v-else-if="mountedView === 'fib'" @open-report="app.openReport" />
       <SentioDiagnose v-else-if="mountedView === 'diagnose'" @open-report="app.openReport" />
+      <SentioAccount v-else-if="mountedView === 'account'" />
       <SentioReport v-else-if="mountedView === 'report'" />
       <SentioSources v-else-if="mountedView === 'sources'" />
       <ChatPanel v-else-if="mountedView === 'chat'" />

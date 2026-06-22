@@ -418,6 +418,7 @@ pub fn sentio_read(app: AppHandle, name: String) -> Option<String> {
         "ai_veto.json",
         "monitor_status.json",
         "diagnose.json",
+        "account.json",
     ];
     if !ALLOW.contains(&name.as_str()) {
         return None;
@@ -434,7 +435,7 @@ fn config_dir(app: &AppHandle) -> Option<PathBuf> {
 /// 读自选股 / 持仓配置 JSON。仅放行已知文件名，杜绝路径穿越。无文件返回 None（前端按空处理）。
 #[tauri::command]
 pub fn diag_config_read(app: AppHandle, name: String) -> Option<String> {
-    const ALLOW: &[&str] = &["my_watchlist.json", "holdings.json"];
+    const ALLOW: &[&str] = &["my_watchlist.json", "holdings.json", "broker_config.json"];
     if !ALLOW.contains(&name.as_str()) {
         return None;
     }
@@ -445,7 +446,7 @@ pub fn diag_config_read(app: AppHandle, name: String) -> Option<String> {
 /// 写自选股 / 持仓配置 JSON（前端「自选/账户」面板增删后落盘）。仅放行已知文件名。
 #[tauri::command]
 pub fn diag_config_write(app: AppHandle, name: String, content: String) -> Result<(), String> {
-    const ALLOW: &[&str] = &["my_watchlist.json", "holdings.json"];
+    const ALLOW: &[&str] = &["my_watchlist.json", "holdings.json", "broker_config.json"];
     if !ALLOW.contains(&name.as_str()) {
         return Err("非法配置名".into());
     }
@@ -455,6 +456,48 @@ pub fn diag_config_write(app: AppHandle, name: String, content: String) -> Resul
     fs::create_dir_all(&dir).map_err(|e| format!("建目录失败: {e}"))?;
     fs::write(dir.join(&name), content).map_err(|e| format!("写入失败: {e}"))?;
     Ok(())
+}
+
+/// 券商对接：同步调用 broker.py 子命令（status / sync / order BUY|SELL code shares [price] / reset-sim），
+/// 返回脚本最后一行 `RESULT:` 后的 JSON 字符串，前端解析。
+///
+/// 安全语义（资金安全关键）：
+/// - 「自动交易」总开关默认关，开关存 broker_config.json（前端写入），broker.py 风控闸再兜底校验。
+/// - 单笔模式：前端弹窗让用户逐单确认后才调 `order`，本命令不主动连续下单。
+/// - 下单前 broker.py 强制过三道闸（授权/额度/仓位），任一不过返回 blocked，绝不静默成交。
+#[tauri::command]
+pub fn broker_cmd(app: AppHandle, args: Vec<String>) -> Result<String, String> {
+    // 仅放行已知子命令，杜绝任意参数注入。
+    let sub = args.first().map(|s| s.as_str()).unwrap_or("");
+    if !matches!(sub, "status" | "sync" | "order" | "reset-sim") {
+        return Err(format!("非法 broker 子命令: {sub}"));
+    }
+    let dir = ensure_pipeline(&app).ok_or("未找到 data-pipeline")?;
+    let python = resolve_python(&app).ok_or("未找到 Python 运行时")?;
+    let mut cmd = Command::new(&python);
+    cmd.arg("broker.py");
+    for a in &args {
+        cmd.arg(a);
+    }
+    cmd.current_dir(&dir)
+        .env("PYTHONIOENCODING", "utf-8")
+        .env("PYTHONUTF8", "1")
+        .env("PYTHONDONTWRITEBYTECODE", "1")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    no_window(&mut cmd);
+    let out = cmd.output().map_err(|e| format!("启动 broker.py 失败: {e}"))?;
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    for line in stdout.lines().rev() {
+        if let Some(j) = line.strip_prefix("RESULT:") {
+            return Ok(j.trim().to_string());
+        }
+    }
+    Err(format!(
+        "broker.py 无结果输出（退出码 {:?}）。stderr: {}",
+        out.status.code(),
+        String::from_utf8_lossy(&out.stderr).chars().take(300).collect::<String>()
+    ))
 }
 
 /// 跑完务必清掉单飞标志（即便线程 panic / 提前 return）。

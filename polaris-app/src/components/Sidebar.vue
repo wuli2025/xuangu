@@ -6,6 +6,7 @@ import {
   TrendingUp,
   Waves,
   ClipboardCheck,
+  Wallet,
   FileText,
   Database,
   MessagesSquare,
@@ -43,6 +44,7 @@ const primaryNav: NavItem[] = [
   { key: "strategy", label: "建议策略", icon: TrendingUp },
   { key: "fib", label: "斐波选股", icon: Waves },
   { key: "diagnose", label: "自选诊断", icon: ClipboardCheck },
+  { key: "account", label: "账户", icon: Wallet },
   { key: "report", label: "个股报告", icon: FileText },
   { key: "sources", label: "信源", icon: Database },
 ];

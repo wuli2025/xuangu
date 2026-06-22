@@ -502,6 +502,70 @@ export async function saveHoldings(positions: Holding[]): Promise<void> {
   await writeConfig("holdings.json", { positions });
 }
 
+// ── 券商对接 / 账户管理(easytrader) ──
+export interface AcctBalance { cash: number; market_value: number; total: number; frozen: number; }
+export interface AcctPosition {
+  code: string; name: string; shares: number; cost: number; price: number;
+  market_value: number; pnl: number; pnl_pct: number;
+}
+export interface RiskLimits { per_order: number; per_day: number; max_pos_pct: number; }
+export interface Account {
+  ok: boolean; adapter: string; connected: boolean; auto_trade: boolean;
+  limits: RiskLimits;
+  balance?: AcctBalance; positions?: AcctPosition[]; day_spent?: number;
+  error?: string; updated_at: string;
+}
+export interface BrokerConfig {
+  adapter: string; auto_trade: boolean; limits: RiskLimits;
+  easytrader: { broker: string; exe_path: string; config_path: string };
+  sim_start_cash: number;
+}
+export interface OrderResult {
+  ok: boolean; msg?: string; blocked?: string;
+  action: string; code: string; name?: string; shares: number; price: number; amount: number;
+}
+export const DEFAULT_BROKER_CONFIG: BrokerConfig = {
+  adapter: "sim", auto_trade: false,
+  limits: { per_order: 50000, per_day: 200000, max_pos_pct: 25 },
+  easytrader: { broker: "universal_client", exe_path: "", config_path: "" },
+  sim_start_cash: 1000000,
+};
+
+async function brokerCmd<T>(args: string[]): Promise<T> {
+  if (!isTauri) throw new Error("账户/券商功能需在桌面端运行");
+  const txt = await invoke<string>("broker_cmd", { args });
+  return JSON.parse(txt) as T;
+}
+export async function loadAccount(): Promise<Account | null> {
+  return readSentio<Account>("account.json");
+}
+export async function brokerStatus(): Promise<Account> {
+  return brokerCmd<Account>(["status"]);
+}
+export async function brokerSync(): Promise<{ ok: boolean; synced: number; account: Account }> {
+  return brokerCmd<{ ok: boolean; synced: number; account: Account }>(["sync"]);
+}
+/** 下单：单笔模式由前端「确认后」调用；后端再过风控三闸，blocked 时返回拦截原因。 */
+export async function brokerOrder(
+  action: "BUY" | "SELL", code: string, shares: number, price?: number
+): Promise<OrderResult> {
+  const args = ["order", action, code, String(shares)];
+  if (price && price > 0) args.push(String(price));
+  return brokerCmd<OrderResult>(args);
+}
+export async function brokerResetSim(): Promise<{ ok: boolean; msg: string }> {
+  return brokerCmd<{ ok: boolean; msg: string }>(["reset-sim"]);
+}
+export async function loadBrokerConfig(): Promise<BrokerConfig> {
+  const d = await readConfig<BrokerConfig>("broker_config.json");
+  return { ...DEFAULT_BROKER_CONFIG, ...(d ?? {}),
+    limits: { ...DEFAULT_BROKER_CONFIG.limits, ...(d?.limits ?? {}) },
+    easytrader: { ...DEFAULT_BROKER_CONFIG.easytrader, ...(d?.easytrader ?? {}) } };
+}
+export async function saveBrokerConfig(cfg: BrokerConfig): Promise<void> {
+  await writeConfig("broker_config.json", cfg);
+}
+
 export async function loadBoard(): Promise<Board | null> {
   return readSentio<Board>("board.json");
 }
