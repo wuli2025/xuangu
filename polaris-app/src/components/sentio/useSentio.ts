@@ -330,6 +330,61 @@ export interface AiVeto {
   note: string;
   updated_at: string;
 }
+// ── 自选诊断(diagnose.json)数据模型 ──
+export interface DiagFactors {
+  close: number;
+  ma20: number; ma60: number; ma120: number;
+  ema21: number; ema55: number; ema34: number;
+  atr_pct: number;
+  rsi: number;
+  r20: number; r60: number; r120: number;
+  hi250: number; lo250: number; pos_in_range: number;
+  vol_ann: number; vol_ratio: number | null;
+  dist_ma20_pct: number; dist_ma60_pct: number;
+  bull_align: boolean; above_ma60: boolean; below_ma120: boolean; ema_up: boolean;
+}
+export interface DiagStrategy {
+  key: string; name: string; tier: string; fit: number; action: string; note: string;
+}
+export interface DiagHist {
+  trades: number; win_rate: number; expectancy_r: number;
+  profit_factor: number | null; avg_win_pct: number; avg_loss_pct: number;
+}
+export interface DiagProvenance {
+  source: string; bars: number; first_date: string; last_date: string;
+  last_close: number; verified: boolean;
+}
+export interface DiagHolding { cost: number | null; shares: number; pnl_pct: number; }
+export interface Diagnosis {
+  code: string; name: string; sector: string;
+  verdict: string; action: string;
+  tier: "buy" | "hold" | "wait" | "warn" | "danger";
+  timing: string;
+  entry: number | null; stop: number; stop_pct: number;
+  target1: number | null; target2: number | null; struct_target: number; upside_pct: number | null;
+  confidence: number;
+  factors: DiagFactors;
+  fib_signal: FibCandidate | null;
+  strategies: DiagStrategy[];
+  hist: DiagHist | null;
+  holding: DiagHolding | null;
+  position_note: string | null;
+  provenance: DiagProvenance;
+  error?: string;
+}
+export interface Diagnose {
+  date: string;
+  engine: string;
+  count: number;
+  requested: string[];
+  failed: { code: string; error: string }[];
+  config: { label: string; k: number; n1: number; n2: number; m: number };
+  diagnoses: Diagnosis[];
+  actions_legend: Record<string, string>;
+  disclaimer: string;
+  updated_at: string;
+}
+
 // 统一读取脚本产出的前端 JSON。
 // 桌面端优先走 Rust `sentio_read`：打包态脚本写到 app-data 可写副本，前端 fetch('/sentio/..') 只能拿到
 // 安装包里的旧副本，故必须改读可写目录的最新产物；失败/非桌面端再回退 fetch（开发态 Vite / Web 壳）。
@@ -392,6 +447,59 @@ export function onFibProgress(cb: (p: SentioProgress) => void) {
 }
 export function onFibDone(cb: (d: SentioDone) => void) {
   return listen<SentioDone>("fib:done", cb);
+}
+
+// ── 自选诊断：读结果 / 触发诊断 / 进度事件 ──
+export async function loadDiagnose(): Promise<Diagnose | null> {
+  return readSentio<Diagnose>("diagnose.json");
+}
+/** 触发一次自选诊断。codes 为空 = 诊断 my_watchlist.json。进度走 diag:progress / diag:done。 */
+export async function runDiag(codes?: string[], aiLlm?: boolean): Promise<string> {
+  if (!isTauri) {
+    throw new Error("「自选诊断」需在桌面端运行（本机 Python 取真实行情）");
+  }
+  const args: Record<string, unknown> = {};
+  if (codes && codes.length) args.codes = codes;
+  if (aiLlm) args.aiLlm = true;
+  return invoke<string>("diag_run", args);
+}
+export function onDiagProgress(cb: (p: SentioProgress) => void) {
+  return listen<SentioProgress>("diag:progress", cb);
+}
+export function onDiagDone(cb: (d: SentioDone) => void) {
+  return listen<SentioDone>("diag:done", cb);
+}
+
+// ── 自选股 / 持仓配置：读写（账户管理基座）──
+export interface MyStock { code: string; name?: string; sector?: string; }
+export interface Holding { code: string; cost?: number | null; shares?: number; }
+async function readConfig<T>(name: string): Promise<T | null> {
+  if (!isTauri) return null;
+  try {
+    const txt = await invoke<string | null>("diag_config_read", { name });
+    if (txt) return JSON.parse(txt) as T;
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+async function writeConfig(name: string, obj: unknown): Promise<void> {
+  if (!isTauri) throw new Error("需在桌面端保存");
+  await invoke("diag_config_write", { name, content: JSON.stringify(obj, null, 2) });
+}
+export async function loadMyWatchlist(): Promise<MyStock[]> {
+  const d = await readConfig<{ stocks: MyStock[] }>("my_watchlist.json");
+  return d?.stocks ?? [];
+}
+export async function saveMyWatchlist(stocks: MyStock[]): Promise<void> {
+  await writeConfig("my_watchlist.json", { stocks });
+}
+export async function loadHoldings(): Promise<Holding[]> {
+  const d = await readConfig<{ positions: Holding[] }>("holdings.json");
+  return d?.positions ?? [];
+}
+export async function saveHoldings(positions: Holding[]): Promise<void> {
+  await writeConfig("holdings.json", { positions });
 }
 
 export async function loadBoard(): Promise<Board | null> {

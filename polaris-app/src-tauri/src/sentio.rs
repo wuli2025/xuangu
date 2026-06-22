@@ -393,6 +393,18 @@ pub async fn fib_run(
     spawn_pipeline(app, "run_fib.py", codes, "fib", "斐波那契选股完成，数据已更新", ai_llm.unwrap_or(false))
 }
 
+/// 「自选诊断」：对用户手输/自选股，基于真实落库行情做多策略诊断（能否买/动作/时机/价位）。
+/// `codes` 为空 = 诊断 my_watchlist.json；进度/结果走 `diag:progress` / `diag:done` 事件。
+#[tauri::command]
+pub async fn diag_run(
+    app: AppHandle,
+    codes: Option<Vec<String>>,
+    ai_llm: Option<bool>,
+) -> Result<String, String> {
+    let codes = codes.unwrap_or_default();
+    spawn_pipeline(app, "run_diag.py", codes, "diag", "自选诊断完成，数据已更新", ai_llm.unwrap_or(false))
+}
+
 /// 读取脚本产出的前端 JSON（打包态在 app-data，开发态在仓库 public/sentio）。
 /// 前端 `fetch('/sentio/x.json')` 在打包态只能读到安装包里的旧副本，故改走本命令读可写目录的最新产物。
 /// 仅放行已知文件名，杜绝路径穿越。
@@ -405,12 +417,44 @@ pub fn sentio_read(app: AppHandle, name: String) -> Option<String> {
         "fib_strategy.json",
         "ai_veto.json",
         "monitor_status.json",
+        "diagnose.json",
     ];
     if !ALLOW.contains(&name.as_str()) {
         return None;
     }
     let f = front_dir(&app)?.join(&name);
     fs::read_to_string(f).ok()
+}
+
+/// 自选/持仓配置目录：脚本运行目录下的 data/（与 diagnose.py 的 SENTIO_DATA_DIR=BASE/data 一致）。
+fn config_dir(app: &AppHandle) -> Option<PathBuf> {
+    Some(pipeline_work_dir(app)?.join("data"))
+}
+
+/// 读自选股 / 持仓配置 JSON。仅放行已知文件名，杜绝路径穿越。无文件返回 None（前端按空处理）。
+#[tauri::command]
+pub fn diag_config_read(app: AppHandle, name: String) -> Option<String> {
+    const ALLOW: &[&str] = &["my_watchlist.json", "holdings.json"];
+    if !ALLOW.contains(&name.as_str()) {
+        return None;
+    }
+    let f = config_dir(&app)?.join(&name);
+    fs::read_to_string(f).ok()
+}
+
+/// 写自选股 / 持仓配置 JSON（前端「自选/账户」面板增删后落盘）。仅放行已知文件名。
+#[tauri::command]
+pub fn diag_config_write(app: AppHandle, name: String, content: String) -> Result<(), String> {
+    const ALLOW: &[&str] = &["my_watchlist.json", "holdings.json"];
+    if !ALLOW.contains(&name.as_str()) {
+        return Err("非法配置名".into());
+    }
+    // 写前校验是合法 JSON，避免把脏数据落盘后 Python 读取崩溃。
+    serde_json::from_str::<serde_json::Value>(&content).map_err(|e| format!("JSON 非法: {e}"))?;
+    let dir = config_dir(&app).ok_or("无法定位配置目录")?;
+    fs::create_dir_all(&dir).map_err(|e| format!("建目录失败: {e}"))?;
+    fs::write(dir.join(&name), content).map_err(|e| format!("写入失败: {e}"))?;
+    Ok(())
 }
 
 /// 跑完务必清掉单飞标志（即便线程 panic / 提前 return）。

@@ -11,7 +11,9 @@ export type ViewKey =
   | "radar" // SENTIO 选股雷达
   | "strategy" // SENTIO 建议策略（多因子达人评分 + 交易计划 + 回测）
   | "fib" // SENTIO 斐波那契趋势选股（金叉进场 + 斐波止损 + 均线移动出场 + 事件回测）
+  | "diagnose" // SENTIO 自选诊断（手输/自选股基于真实行情多策略诊断：能否买/动作/时机/价位）
   | "report" // 个股报告
+  | "sources" // 信源（采集的信源 + 采集方式目录）
   | "chat" // 对话后台引擎(无导航，供报告生成调用)
   | "env_doctor"
   | "update"

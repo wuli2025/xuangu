@@ -16,7 +16,9 @@ const SentioBoard = defineAsyncComponent(() => import("./components/sentio/Senti
 const SentioRadar = defineAsyncComponent(() => import("./components/sentio/SentioRadar.vue"));
 const SentioStrategy = defineAsyncComponent(() => import("./components/sentio/SentioStrategy.vue"));
 const SentioFib = defineAsyncComponent(() => import("./components/sentio/SentioFib.vue"));
+const SentioDiagnose = defineAsyncComponent(() => import("./components/sentio/SentioDiagnose.vue"));
 const SentioReport = defineAsyncComponent(() => import("./components/sentio/SentioReport.vue"));
+const SentioSources = defineAsyncComponent(() => import("./components/sentio/SentioSources.vue"));
 import { useAppStore } from "./stores/app";
 import { useProvidersStore } from "./stores/providers";
 import { useChatStore } from "./stores/chat";
@@ -40,7 +42,7 @@ onMounted(() => {
   // URL 深链：?view=fib 直达对应视图（便于直接打开某屏 / 截图 / 外部跳转）
   try {
     const v = new URLSearchParams(location.search).get("view");
-    const allowed = ["board", "radar", "strategy", "fib", "report", "env_doctor", "update", "settings"];
+    const allowed = ["board", "radar", "strategy", "fib", "diagnose", "report", "sources", "env_doctor", "update", "settings"];
     if (v && allowed.includes(v)) app.view = v as typeof app.view;
   } catch {
     /* ignore */
@@ -59,7 +61,9 @@ const layoutCols = computed(() => `${app.sidebarWidth}px 1fr`);
       <SentioRadar v-else-if="mountedView === 'radar'" @open-report="app.openReport" />
       <SentioStrategy v-else-if="mountedView === 'strategy'" @open-report="app.openReport" />
       <SentioFib v-else-if="mountedView === 'fib'" @open-report="app.openReport" />
+      <SentioDiagnose v-else-if="mountedView === 'diagnose'" @open-report="app.openReport" />
       <SentioReport v-else-if="mountedView === 'report'" />
+      <SentioSources v-else-if="mountedView === 'sources'" />
       <ChatPanel v-else-if="mountedView === 'chat'" />
       <EnvDoctor v-else-if="mountedView === 'env_doctor'" />
       <UpdatePanel v-else-if="mountedView === 'update'" />

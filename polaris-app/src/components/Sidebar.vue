@@ -5,7 +5,9 @@ import {
   Radar,
   TrendingUp,
   Waves,
+  ClipboardCheck,
   FileText,
+  Database,
   MessagesSquare,
   Library,
   Waypoints,
@@ -40,7 +42,9 @@ const primaryNav: NavItem[] = [
   { key: "radar", label: "选股雷达", icon: Radar },
   { key: "strategy", label: "建议策略", icon: TrendingUp },
   { key: "fib", label: "斐波选股", icon: Waves },
+  { key: "diagnose", label: "自选诊断", icon: ClipboardCheck },
   { key: "report", label: "个股报告", icon: FileText },
+  { key: "sources", label: "信源", icon: Database },
 ];
 // 收纳进「更多」的次要项（仅保留基础设施：更新 / 环境 / 设置）
 const moreNav: NavItem[] = [
