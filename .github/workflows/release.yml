@@ -82,7 +82,7 @@ jobs:
           $sigFile = Get-ChildItem polaris-app/src-tauri/target/release/bundle/nsis/*.sig -ErrorAction SilentlyContinue | Select-Object -First 1
           if (-not $sigFile) { Write-Error "未找到 .sig,无法生成 latest.json"; exit 1 }
           $sig = (Get-Content $sigFile.FullName -Raw).Trim()
-          $exeUrl = gh release view $tag --json assets --jq '.assets[] | select(.name|endswith(\".exe\")) | .url'
+          $exeUrl = gh release view $tag --json assets --jq '.assets[] | select(.name | endswith(".exe")) | .url'
           $ver = $tag.TrimStart('v')
           $obj = [ordered]@{
             version  = $ver
