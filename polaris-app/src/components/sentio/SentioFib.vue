@@ -1,11 +1,16 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, onUnmounted } from "vue";
-import { loadFib, type FibStrategy, type FibCandidate } from "./useSentio";
+import {
+  loadFib, loadAiVeto, loadMonitor,
+  type FibStrategy, type FibCandidate, type AiVeto, type AiVetoResult, type MonitorStatus,
+} from "./useSentio";
 import { useFibCheck } from "./useFibCheck";
 
 const emit = defineEmits<{ (e: "open-report", code: string): void }>();
 
 const fib = ref<FibStrategy | null>(null);
+const aiVeto = ref<AiVeto | null>(null);
+const monitor = ref<MonitorStatus | null>(null);
 const loading = ref(true);
 const showMatrix = ref(false);
 
@@ -14,9 +19,22 @@ let offDone: (() => void) | null = null;
 
 async function refresh() {
   loading.value = true;
-  fib.value = await loadFib();
+  const [f, v, m] = await Promise.all([loadFib(), loadAiVeto(), loadMonitor()]);
+  fib.value = f;
+  aiVeto.value = v;
+  monitor.value = m;
   loading.value = false;
 }
+
+// AI 排雷查表（code → 结果）+ 市场态势 + 样本外
+const vetoMap = computed(() => {
+  const m: Record<string, AiVetoResult> = {};
+  for (const r of aiVeto.value?.results ?? []) m[r.code] = r;
+  return m;
+});
+const regime = computed(() => fib.value?.regime ?? null);
+const oos = computed(() => fib.value?.validation?.walkforward ?? null);
+const sevColor: Record<string, string> = { ok: "#00e69a", warn: "#ffcf6b", err: "#ff5470" };
 async function runNow() {
   await check.start();
 }
@@ -105,6 +123,24 @@ function openReport(code: string) {
         </button>
       </header>
 
+      <!-- 系统健康 + 市场态势 状态条 -->
+      <div v-if="monitor || regime" class="statusbar">
+        <div v-if="monitor" class="sbitem" :title="Object.values(monitor.checks).map(c=>c.msg).join(' · ')">
+          <span class="sdot" :style="{ background: sevColor[monitor.overall_sev] }"></span>
+          系统：<b :style="{ color: sevColor[monitor.overall_sev] }">{{ monitor.overall }}</b>
+          <small>数据/策略/账户/风控</small>
+        </div>
+        <div v-if="regime" class="sbitem" :title="regime.advice">
+          市场态势：<b>{{ regime.label }}</b>
+          <small>{{ regime.symbol }} 建议敞口 {{ (regime.exposure * 100).toFixed(0) }}%</small>
+        </div>
+        <div v-if="aiVeto" class="sbitem">
+          AI 排雷：<b>{{ aiVeto.assessed }}</b> 只
+          <small v-if="aiVeto.veto_count">否决 {{ aiVeto.veto_count }}</small>
+          <small v-else>无硬红旗</small>
+        </div>
+      </div>
+
       <div v-if="check.running.value || check.ok.value === false" class="progress">
         <div class="ptop">
           <span class="plabel">{{ check.running.value ? "取价 → 事件回测 → 参数寻优 → 今日选股" : "检查未完成" }}</span>
@@ -139,9 +175,19 @@ function openReport(code: string) {
             @click="openReport(c.code)"
           >
             <div class="cl">
-              <span class="cstate" :style="{ color: stateMeta[c.state].color, borderColor: stateMeta[c.state].color }">
-                {{ stateMeta[c.state].label }}
-              </span>
+              <div class="ctags">
+                <span class="cstate" :style="{ color: stateMeta[c.state].color, borderColor: stateMeta[c.state].color }">
+                  {{ stateMeta[c.state].label }}
+                </span>
+                <span
+                  v-if="vetoMap[c.code]"
+                  class="aibadge"
+                  :class="vetoMap[c.code].veto ? 'veto' : (vetoMap[c.code].red_flags.length ? 'warn' : 'pass')"
+                  :title="vetoMap[c.code].reason + (vetoMap[c.code].source==='llm' ? '（AI深研）' : '')"
+                >
+                  {{ vetoMap[c.code].veto ? "🔴 AI否决" : (vetoMap[c.code].red_flags.length ? "🟡 " + vetoMap[c.code].red_flags.slice(0,2).join("/") : "🟢 AI通过") }}
+                </span>
+              </div>
               <div class="cnm">{{ c.name }}<small>{{ c.code }} · {{ c.sector }}</small></div>
               <div class="creason">{{ c.reason }}</div>
             </div>
@@ -221,6 +267,35 @@ function openReport(code: string) {
               <div class="m"><div class="mv">{{ pf.vol_ann }}%</div><div class="ml">年化波动</div></div>
               <div class="m"><div class="mv dim">{{ pf.bench_mdd }}%</div><div class="ml">基准回撤</div></div>
             </div>
+          </div>
+        </template>
+
+        <!-- 样本外(OOS)诚实对照 -->
+        <template v-if="oos && oos.oos_pooled && oos.is_pooled">
+          <div class="sechead">🔬 样本外验证 · 防过拟合的诚实成绩（滚动选参：训练 {{ oos.window.train_months }} 月 → 检验 {{ oos.window.test_months }} 月）</div>
+          <div class="oos">
+            <div class="oosgrid">
+              <div class="ooscol is">
+                <div class="oostag">样本内（乐观上界·会高估）</div>
+                <div class="oosrow"><span>每笔期望</span><b>+{{ oos.is_pooled.expectancy_r }}R</b></div>
+                <div class="oosrow"><span>盈利因子</span><b>{{ oos.is_pooled.profit_factor }}</b></div>
+                <div class="oosrow"><span>胜率</span><b>{{ oos.is_pooled.win_rate }}%</b></div>
+              </div>
+              <div class="oosarrow">→</div>
+              <div class="ooscol oo">
+                <div class="oostag hl">样本外（诚实·可信预期）</div>
+                <div class="oosrow"><span>每笔期望</span><b class="up">+{{ oos.oos_pooled.expectancy_r }}R</b></div>
+                <div class="oosrow"><span>盈利因子</span><b class="up">{{ oos.oos_pooled.profit_factor }}</b></div>
+                <div class="oosrow"><span>胜率</span><b>{{ oos.oos_pooled.win_rate }}%</b></div>
+                <div class="oosrow" v-if="oos.oos_portfolio"><span>组合年化</span><b>{{ oos.oos_portfolio.cagr }}%</b></div>
+                <div class="oosrow" v-if="oos.oos_portfolio"><span>最大回撤</span><b class="down">{{ oos.oos_portfolio.max_drawdown }}%</b></div>
+                <div class="oosrow" v-if="oos.oos_portfolio"><span>夏普</span><b>{{ oos.oos_portfolio.sharpe }}</b></div>
+              </div>
+            </div>
+            <p class="oosnote" v-if="oos.verdict">
+              <b :class="oos.verdict.effective ? 'up' : 'down'">{{ oos.verdict.effective ? "✅ edge 样本外稳健" : "⚠ edge 样本外偏弱" }}</b>
+              ·保留样本内 <b>{{ oos.verdict.retention_pct }}%</b> 期望R。<b class="gold">对外汇报、上实盘一律以「样本外」为准</b>——样本内数字是技术上限，不是真实预期。
+            </p>
           </div>
         </template>
 
@@ -337,6 +412,39 @@ h1 { font-size: 32px; font-weight: 800; letter-spacing: -0.02em; margin: 6px 0 4
 .chnone { font-size: 11px; color: #5c6378; }
 .up { color: #00e69a; } .down { color: #ff5470; } .gold { color: #ffcf6b; }
 .hint { color: #6b7384; font-size: 12px; margin: 12px 0 0; line-height: 1.7; }
+
+/* 系统健康 + 态势 状态条 */
+.statusbar { display: flex; flex-wrap: wrap; gap: 10px; margin: 16px 0 4px; }
+.sbitem { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; color: #c7cedb;
+  border: 1px solid rgba(255, 255, 255, 0.09); border-radius: 980px; padding: 7px 15px; background: rgba(255, 255, 255, 0.04); }
+.sbitem b { font-weight: 700; }
+.sbitem small { color: #6b7384; font-size: 11px; }
+.sdot { width: 8px; height: 8px; border-radius: 50%; box-shadow: 0 0 8px currentColor; }
+
+/* AI 排雷徽章 */
+.ctags { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.aibadge { font-size: 10.5px; font-weight: 700; padding: 2px 9px; border-radius: 980px; border: 1px solid; }
+.aibadge.pass { color: #00e69a; border-color: rgba(0, 230, 154, 0.4); background: rgba(0, 230, 154, 0.08); }
+.aibadge.warn { color: #ffcf6b; border-color: rgba(255, 207, 107, 0.4); background: rgba(255, 207, 107, 0.08); }
+.aibadge.veto { color: #ff5470; border-color: rgba(255, 84, 112, 0.5); background: rgba(255, 84, 112, 0.1); }
+
+/* 样本外面板 */
+.oos { border: 1px solid rgba(255, 255, 255, 0.09); border-radius: 18px; padding: 20px; background: rgba(255, 255, 255, 0.045); }
+.oosgrid { display: flex; align-items: stretch; gap: 14px; }
+.ooscol { flex: 1; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 14px; padding: 14px 16px; }
+.ooscol.is { opacity: 0.72; }
+.ooscol.oo { border-color: rgba(0, 230, 154, 0.3); background: rgba(0, 230, 154, 0.04); }
+.oostag { font-size: 11.5px; color: #8a93a8; margin-bottom: 10px; font-weight: 600; }
+.oostag.hl { color: #00e69a; }
+.oosrow { display: flex; justify-content: space-between; align-items: baseline; font-size: 12.5px; padding: 4px 0; color: #8a93a8; }
+.oosrow b { font-family: "SF Mono", Consolas, monospace; font-size: 14px; color: #d6dceb; }
+.oosarrow { display: flex; align-items: center; color: #5c6378; font-size: 20px; }
+.oosnote { font-size: 12px; color: #8a93a8; line-height: 1.7; margin: 14px 0 0; }
+.oosnote b { font-weight: 700; }
+@media (max-width: 880px) {
+  .oosgrid { flex-direction: column; }
+  .oosarrow { transform: rotate(90deg); justify-content: center; }
+}
 .hint b { color: #c7cedb; }
 
 .asym { border: 1px solid rgba(255, 255, 255, 0.09); border-radius: 18px; padding: 20px; background: rgba(255, 255, 255, 0.045); }

@@ -56,6 +56,8 @@ class FibConfig:
     pyramid_units: tuple = (4, 3, 2, 1)  # 各扩展位加仓单位（递减，底仓最重）
     # 成本
     cost_roundtrip: float = 0.002  # 单笔往返成本(佣金+印花+滑点)，A股诚实计提 ~0.2%
+    # A股微观结构(P1-C):让回测可落地，而非乐观偷价
+    a_share_rules: bool = True   # T+1当日不可卖 / 涨停一字板买不进(跳过) / 跌停一字板卖不出(顺延到打开板)
     # 回测起点
     warmup: int = 60             # 指标预热所需最少 K 线
 
@@ -87,6 +89,17 @@ class Trade:
 # ───────────────────────── 指标 ─────────────────────────
 def ema(s: pd.Series, n: int) -> pd.Series:
     return s.ewm(span=n, adjust=False).mean()
+
+
+def limit_pct(code: str) -> float:
+    """按板块返回当日涨跌停幅度:创业板/科创板(300/688)20% · 北交所(4/8)30% · 主板10%。
+    (ST 5% 此处不识别——龙头宇宙无 ST;全市场扩容时需接 ST 标记。)"""
+    c = str(code)
+    if c.startswith(("300", "301", "688")):
+        return 0.20
+    if c.startswith(("4", "8")):
+        return 0.30
+    return 0.10
 
 
 def atr_wilder(df: pd.DataFrame, n: int = 14) -> pd.Series:
@@ -146,6 +159,15 @@ def simulate(df: pd.DataFrame, cfg: FibConfig, code: str = "") -> list[Trade]:
     dates = [t.strftime("%Y-%m-%d") for t in d.index]
     n = len(d)
 
+    # A股微结构:涨停/跌停一字板判定(high==low 且涨跌幅≥板块限制 → 当日封板不可成交)
+    lim = limit_pct(code)
+    pc = d["close"].shift(1).to_numpy(dtype=float)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        chg = c / pc - 1.0
+    one_price = (hi == lo)
+    up_lock = cfg.a_share_rules & one_price & (chg >= lim - 0.005)    # 涨停一字板:买不进
+    dn_lock = cfg.a_share_rules & one_price & (chg <= -(lim - 0.005)) # 跌停一字板:卖不出
+
     trades: list[Trade] = []
     i = cfg.warmup
     while i < n - 1:
@@ -157,6 +179,9 @@ def simulate(df: pd.DataFrame, cfg: FibConfig, code: str = "") -> list[Trade]:
             if not math.isfinite(entry) or entry <= 0:
                 i += 1
                 continue
+            if cfg.a_share_rules and up_lock[ei]:   # 次日涨停一字板 → 根本买不进,放弃该信号
+                i += 1
+                continue
             stop0 = entry - cfg.k * atr[i]   # 斐波那契硬止损
             if stop0 <= 0 or stop0 >= entry:
                 i += 1
@@ -164,29 +189,43 @@ def simulate(df: pd.DataFrame, cfg: FibConfig, code: str = "") -> list[Trade]:
             init_risk = (entry - stop0) / entry
             peak = entry
             trough = entry
-            exit_price = None
-            exit_reason = "eod"
             xi = ei
+            trig = None                      # (reason, j, fill_price)
             # ── 持仓管理：从进场根 ei 向后逐根 ──
+            #   均线出场永远只在 ei 之后的收盘判(进场当根不算);斐波硬止损可当根触发,
+            #   但开启 A股 T+1 后进场当根完全不可卖(连灾难止损也要顺延到次日)。
             for j in range(ei, n):
                 peak = max(peak, hi[j])
                 trough = min(trough, lo[j])
-                # 1) 斐波那契硬止损（盘中）——灾难保护，跌破即走
+                if j == ei:
+                    if not cfg.a_share_rules and lo[j] <= stop0:   # 旧口径:当根可灾难止损
+                        fill = min(o[j], stop0) if o[j] < stop0 else stop0
+                        trig = ("fib_stop", j, fill)
+                        break
+                    continue                 # 进场当根不判均线出场(T+1 时连止损也不可卖)
+                # 1) 斐波那契硬止损（盘中）——灾难保护，跌破即走(跳空低开则以开盘成交)
                 if lo[j] <= stop0:
-                    exit_price = min(o[j], stop0) if o[j] < stop0 else stop0
-                    exit_reason = "fib_stop"
-                    xi = j
+                    fill = min(o[j], stop0) if o[j] < stop0 else stop0
+                    trig = ("fib_stop", j, fill)
                     break
                 # 2) 均线移动止损（收盘）——站上 EMA(m) 一律持有，跌破才走
-                if c[j] < emam[j] and j > ei:
-                    exit_price = c[j]
-                    exit_reason = "ma_break"
-                    xi = j
+                if c[j] < emam[j]:
+                    trig = ("ma_break", j, c[j])
                     break
-            if exit_price is None:           # 数据末端仍持有，按最后收盘平
-                exit_price = c[n - 1]
-                xi = n - 1
-                exit_reason = "eod"
+            if trig is None:                 # 数据末端仍持有，按最后收盘平
+                exit_price, xi, exit_reason = c[n - 1], n - 1, "eod"
+            else:
+                reason, j, fill = trig
+                # 跌停一字板当日卖不出 → 顺延到下一个打开板的交易日,以其开盘价出(更差的真实成交)
+                if cfg.a_share_rules and dn_lock[j]:
+                    jj = j
+                    while jj < n and dn_lock[jj]:
+                        jj += 1
+                    jj = min(jj, n - 1)
+                    exit_price = o[jj] if math.isfinite(o[jj]) else c[jj]
+                    xi, exit_reason = jj, reason + "_delayed"
+                else:
+                    exit_price, xi, exit_reason = fill, j, reason
             ret = exit_price / entry - 1
             ret_net = ret - cfg.cost_roundtrip
             r_mult = ret_net / init_risk if init_risk > 0 else 0.0

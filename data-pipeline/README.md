@@ -76,6 +76,11 @@ python fib_scan.py 600519     # 指定代码
 
 > ⚠ 宇宙为当下龙头精选，存在事后选择偏差，绝对收益高估；趋势策略震荡市必然连续小亏，靠少数
 > 大趋势的非对称盈利覆盖。看「相对基准超额 + 回撤/夏普」才诚实。
+>
+> ⚠⚠ **以上是样本内(乐观上界)。** `walkforward.py`(P1-B,train12/test6月滚动选参)给出的**样本外(OOS)
+> 诚实业绩**才是可信预期：**期望 +1.0R、profit factor ~2.9、组合 CAGR ~18%、夏普 ~0.7、回撤 −9.5%**
+> (仅保留样本内 ~45% 期望R)。edge 真实但会衰减——对外/汇报一律用 OOS 口径。月均约 1.4%，
+> 「稳定月化 8%」做不到(见 `strategy.py:541`)。工业级改造总纲见 `INDUSTRIAL_PLAN.md`。
 
 产物：`output/fib_strategy.json`(+同步 `../polaris-app/public/sentio/`)，前端**「斐波选股」**页渲染。
 Rust 命令 `fib_run` 调起 `run_fib.py`，事件 `fib:progress`/`fib:done`。

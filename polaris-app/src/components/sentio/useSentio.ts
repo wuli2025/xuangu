@@ -225,6 +225,25 @@ export interface FibVerdict {
   expectancy_r?: number;
   excess?: number;
 }
+// 样本外(walk-forward OOS)诚实对照
+export interface FibWalkForward {
+  window: { train_months: number; test_months: number; step_months: number };
+  span: string;
+  is_pooled: FibPooled | null;
+  oos_pooled: FibPooled | null;
+  oos_portfolio: FibPortfolio | null;
+  verdict: { effective: boolean; retention_pct: number; headline: string } | null;
+}
+// 市场态势(regime)快照
+export interface FibRegime {
+  symbol: string;
+  date: string;
+  close: number;
+  exposure: number;
+  label: string;
+  detail: string;
+  advice: string;
+}
 export interface FibHist {
   trades: number;
   win_rate: number;
@@ -258,6 +277,8 @@ export interface FibStrategy {
   universe: number;
   scanned: number;
   failed: string[];
+  regime?: FibRegime | null;
+  regime_gate?: boolean;
   config: {
     n1: number;
     n2: number;
@@ -275,12 +296,70 @@ export interface FibStrategy {
     param_matrix: FibParamRow[];
     slope_compare: FibSlopeRow[];
     verdict: FibVerdict;
+    walkforward?: FibWalkForward | null;
   };
   candidates: FibCandidate[];
   fresh_count: number;
   rules: { entry: string; stop: string; exit: string; size: string };
   disclaimer: string;
   updated_at: string;
+}
+
+// ── AI 催化剂否决层(ai_veto.json) ──
+export interface AiVetoResult {
+  code: string;
+  name: string;
+  veto: boolean;
+  risk_score: number;
+  catalyst_score: number;
+  red_flags: string[];
+  catalysts: string[];
+  verdict: string;
+  reason: string;
+  news_count: number;
+  source: string;
+}
+export interface AiVeto {
+  date: string;
+  mode: string;
+  assessed: number;
+  vetoed: string[];
+  veto_count: number;
+  keep: string[];
+  results: AiVetoResult[];
+  note: string;
+  updated_at: string;
+}
+export async function loadAiVeto(): Promise<AiVeto | null> {
+  try {
+    const r = await fetch(`${import.meta.env.BASE_URL || "/"}sentio/ai_veto.json?t=${Date.now()}`);
+    if (!r.ok) return null;
+    return (await r.json()) as AiVeto;
+  } catch {
+    return null;
+  }
+}
+
+// ── 系统健康监控(monitor_status.json) ──
+export interface MonitorCheck {
+  sev: "ok" | "warn" | "err";
+  msg: string;
+  detail: Record<string, unknown>;
+}
+export interface MonitorStatus {
+  overall: string;
+  overall_sev: "ok" | "warn" | "err";
+  checks: Record<string, MonitorCheck>;
+  updated_at: string;
+}
+export async function loadMonitor(): Promise<MonitorStatus | null> {
+  try {
+    const r = await fetch(`${import.meta.env.BASE_URL || "/"}sentio/monitor_status.json?t=${Date.now()}`);
+    if (!r.ok) return null;
+    return (await r.json()) as MonitorStatus;
+  } catch {
+    return null;
+  }
 }
 
 export async function loadFib(): Promise<FibStrategy | null> {

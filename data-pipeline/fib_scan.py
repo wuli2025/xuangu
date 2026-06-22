@@ -49,11 +49,13 @@ import akshare as ak
 from fib_engine import (
     FibConfig, FIB_K, simulate, signal_today, summarize_trades,
 )
+import regime as rg
 
 BASE = Path(__file__).resolve().parent
 OUT_DIR = BASE / "output"
 CACHE_DIR = BASE / "data" / "cache"
-WATCHLIST = BASE / "watchlist.json"
+# 默认跑精选 watchlist;SENTIO_WATCHLIST=universe.json 可切到 build_universe.py 产出的大宇宙(P2-A)。
+WATCHLIST = BASE / os.environ.get("SENTIO_WATCHLIST", "watchlist.json")
 FRONT_DIR = BASE.parent / "polaris-app" / "public" / "sentio"
 SENTIMENT = OUT_DIR / "sentiment_latest.json"
 
@@ -118,16 +120,24 @@ def fetch_hist(code, days=FETCH_DAYS, use_cache=True):
 
 
 # ───────────────────────── 组合层日频回测 ─────────────────────────
-def portfolio_backtest(dfs: dict, cfg: FibConfig, max_concurrent=MAX_CONCURRENT):
+def portfolio_backtest(dfs: dict, cfg: FibConfig, max_concurrent=MAX_CONCURRENT, regime_exp=None, trades=None):
     """
     用各股 simulate 出的交易(精确进/出场日与净收益)，跑组合层日频权益曲线：
       固定分数风险(min(risk/init_risk, max_pos)×凯利折扣) · 最多 N 并发 · 出场结算复利。
     对标：等权买入持有(同窗口)。返回 metrics + 月度曲线(strat/bench)。
+
+    regime_exp: 可选的市场态势敞口序列(regime.regime_series 产出，已滞后1日，point-in-time)。
+      进场日按 exposure_asof(进场日) 缩放仓位：0=跳过该进场，0.5=半仓，1=满仓。None=不启用(旧行为)。
+    trades: 可选的预算交易列表(walk-forward OOS 用——按窗口选参拼出的样本外交易)。
+      给定则跳过内部 simulate，直接用这批交易跑组合层权益，复用同一套基准/指标口径。
     """
-    all_trades = []
-    for code, df in dfs.items():
-        for t in simulate(df, cfg, code):
-            all_trades.append(t)
+    if trades is not None:
+        all_trades = list(trades)
+    else:
+        all_trades = []
+        for code, df in dfs.items():
+            for t in simulate(df, cfg, code):
+                all_trades.append(t)
     if len(all_trades) < 8:
         return None, all_trades
 
@@ -163,8 +173,12 @@ def portfolio_backtest(dfs: dict, cfg: FibConfig, max_concurrent=MAX_CONCURRENT)
         for k in entries.get(d, []):
             if len(open_pos) >= max_concurrent:
                 continue
+            # 市场态势闸：风险关停跳过新开仓，半仓档位仓位减半(point-in-time)
+            exp = rg.exposure_asof(regime_exp, d) if regime_exp is not None else 1.0
+            if exp <= 0:
+                continue
             t = all_trades[k]
-            pos_frac = min(cfg.risk_per_trade / max(t.init_risk_pct, 0.005), cfg.max_pos) * cfg.kelly_fraction
+            pos_frac = min(cfg.risk_per_trade / max(t.init_risk_pct, 0.005), cfg.max_pos) * cfg.kelly_fraction * exp
             open_pos[k] = equity * pos_frac
         nav[d] = equity
     nav = nav.ffill()
@@ -322,10 +336,36 @@ def main():
         matrix, cfg, best_st, slope_cmp = grid_search(dfs)
         log(f"  → 最优运行配置：{cfg.label()}")
 
+    # 市场态势(regime):始终算快照供前端/实盘风控;闸门默认关(A/B 实测对龙头宇宙不提升收益,
+    # 仅作可选防御层,见 INDUSTRIAL_PLAN P1-A)。SENTIO_REGIME=1 启用最温和档 0.7/1/1。
+    regime_snapshot, regime_exp = None, None
+    use_regime_gate = os.environ.get("SENTIO_REGIME", "") in ("1", "true", "on")
+    try:
+        idx_df = rg.fetch_index()
+        regime_snapshot = rg.regime_today(idx_df)
+        log(f"市场态势:{regime_snapshot['label']} · 建议敞口 {regime_snapshot['exposure']:.0%}")
+        if use_regime_gate:
+            regime_exp = rg.regime_series(idx_df, levels=rg.LEVELS_DEFAULT)
+            log("  regime 防御闸:已启用(熊市七成档 0.7/1/1)")
+    except Exception as e:
+        log(f"市场态势获取失败(不影响选股):{type(e).__name__}: {str(e)[:40]}")
+
     # ③ 组合层回测（用运行配置）
     log("组合层日频回测 + 池化交易统计…")
-    metrics, all_trades = portfolio_backtest(dfs, cfg)
+    metrics, all_trades = portfolio_backtest(dfs, cfg, regime_exp=regime_exp)
     pooled = summarize_trades(all_trades)
+
+    # ③b Walk-forward 样本外验证（诚实化:样本内业绩是乐观上界，OOS 才是可信预期）。
+    #    始终计算(便宜~2s 且是前端「IS vs OOS」诚实面板的数据源，与 --quick 解耦保证调度也有 OOS)。
+    oos = None
+    try:
+        import walkforward as wf
+        log("Walk-forward 样本外验证(train12/test6月滚动)…")
+        oos = wf.run_oos(dfs)
+        if oos and oos.get("verdict"):
+            log(f"  OOS：{oos['verdict']['headline']}")
+    except Exception as e:
+        log(f"  walk-forward 异常(跳过):{type(e).__name__}: {str(e)[:50]}")
 
     # 个股历史战绩（供候选卡片展示「这只票历史上这套信号的表现」）
     per_stock = {}
@@ -361,6 +401,8 @@ def main():
         "universe": len(wl),
         "scanned": len(dfs),
         "failed": failed,
+        "regime": regime_snapshot,
+        "regime_gate": use_regime_gate,
         "config": {
             "n1": cfg.n1, "n2": cfg.n2, "m": cfg.m, "k": cfg.k,
             "label": cfg.label(),
@@ -373,6 +415,7 @@ def main():
             "param_matrix": matrix,
             "slope_compare": slope_cmp,
             "verdict": verdict,
+            "walkforward": oos,   # 样本外(OOS)诚实对照:is_pooled vs oos_pooled / oos_portfolio / verdict
         },
         "candidates": cands,
         "fresh_count": len(fresh),

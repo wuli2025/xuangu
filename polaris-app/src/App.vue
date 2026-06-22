@@ -33,6 +33,14 @@ const mountedView = computed(() => app.view);
 // 智投顾：无进场动画、无启动自动更新检查（避免无 release 时报错），开窗直达主界面。
 onMounted(() => {
   chatStore.init();
+  // URL 深链：?view=fib 直达对应视图（便于直接打开某屏 / 截图 / 外部跳转）
+  try {
+    const v = new URLSearchParams(location.search).get("view");
+    const allowed = ["board", "radar", "strategy", "fib", "report", "env_doctor", "update", "settings"];
+    if (v && allowed.includes(v)) app.view = v as typeof app.view;
+  } catch {
+    /* ignore */
+  }
 });
 
 // 右侧抽屉已移除，主区两列布局：侧栏 + 主内容。

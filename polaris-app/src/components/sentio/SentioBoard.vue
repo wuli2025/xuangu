@@ -1,18 +1,32 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from "vue";
+import { ref, onMounted, computed, onUnmounted } from "vue";
 import { loadBoard, tempColor, levelColor, type Board } from "./useSentio";
+import { useCheck } from "./useCheck";
 
 const emit = defineEmits<{ (e: "open-report", code: string): void }>();
 
 const board = ref<Board | null>(null);
 const loading = ref(true);
 
+const check = useCheck();
+let offDone: (() => void) | null = null;
+
 async function refresh() {
   loading.value = true;
   board.value = await loadBoard();
   loading.value = false;
 }
-onMounted(refresh);
+async function runNow() {
+  await check.start();
+}
+onMounted(() => {
+  refresh();
+  // 检查完成 → 自动重载看板数据
+  offDone = check.onDone((d) => {
+    if (d.ok) refresh();
+  });
+});
+onUnmounted(() => offDone?.());
 
 const mt = computed(() => board.value?.market_temp ?? 0);
 const mc = computed(() => tempColor(mt.value));
@@ -32,8 +46,21 @@ const updated = computed(() =>
           <h1>舆情看板</h1>
         </div>
         <div class="live" v-if="board">数据 {{ updated }} · 点任意行生成报告</div>
-        <button class="refresh" @click="refresh">刷新</button>
+        <button class="check" :disabled="check.running.value" @click="runNow">
+          <span class="dot" :class="{ spin: check.running.value }"></span>
+          {{ check.running.value ? "检查中…" : "立即检查" }}
+        </button>
       </header>
+
+      <!-- 立即检查进度 -->
+      <div v-if="check.running.value || check.ok.value === false" class="progress">
+        <div class="ptop">
+          <span class="plabel">{{ check.running.value ? "采集舆情 → 多因子策略 → 回测" : (check.ok.value === false ? "检查未完成" : "完成") }}</span>
+          <span class="ppct">{{ check.pct.value }}%</span>
+        </div>
+        <div class="ptrack"><i :style="{ width: check.pct.value + '%' }"></i></div>
+        <div class="plog">{{ check.lines.value[check.lines.value.length - 1] || check.lastMsg.value }}</div>
+      </div>
 
       <div v-if="loading" class="empty">载入采集数据…</div>
       <div v-else-if="!board" class="empty">
@@ -124,6 +151,30 @@ h1 { font-size: 32px; font-weight: 800; letter-spacing: -0.02em; margin: 6px 0 0
   border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 980px; padding: 5px 14px; cursor: pointer;
 }
 .refresh:hover { color: #f0f3fa; }
+.check {
+  margin-left: auto; display: inline-flex; align-items: center; gap: 8px;
+  font-size: 13px; font-weight: 700; color: #05121f;
+  background: linear-gradient(120deg, #5b8cff, #00e0c6); border: none;
+  border-radius: 980px; padding: 9px 20px; cursor: pointer;
+  box-shadow: 0 6px 20px rgba(0, 224, 198, 0.28); transition: 0.15s;
+}
+.check:hover { filter: brightness(1.06); transform: translateY(-1px); }
+.check:disabled { opacity: 0.7; cursor: default; transform: none; }
+.check .dot { width: 8px; height: 8px; border-radius: 50%; background: #05121f; }
+.check .dot.spin {
+  border: 2px solid rgba(5, 18, 31, 0.35); border-top-color: #05121f;
+  background: transparent; animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.progress {
+  border: 1px solid rgba(0, 224, 198, 0.25); border-radius: 14px;
+  padding: 14px 18px; background: rgba(0, 224, 198, 0.05); margin: 18px 0 6px;
+}
+.ptop { display: flex; justify-content: space-between; font-size: 12px; color: #8a93a8; margin-bottom: 8px; }
+.ptop .ppct { color: #00e0c6; font-weight: 700; font-family: "SF Mono", Consolas, monospace; }
+.ptrack { height: 6px; border-radius: 980px; background: rgba(255, 255, 255, 0.08); overflow: hidden; }
+.ptrack i { display: block; height: 100%; border-radius: 980px; background: linear-gradient(90deg, #5b8cff, #00e0c6); transition: width 0.4s ease; }
+.plog { margin-top: 9px; font-size: 11.5px; color: #6b7384; font-family: "SF Mono", Consolas, monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .empty { color: #8a93a8; padding: 60px 0; text-align: center; font-size: 14px; }
 .empty code { background: rgba(255, 255, 255, 0.08); padding: 2px 8px; border-radius: 6px; color: #a9d8ff; }
 
