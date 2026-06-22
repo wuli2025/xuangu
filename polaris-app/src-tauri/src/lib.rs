@@ -220,6 +220,8 @@ pub fn run() {
             sentio::sentio_run,
             // 斐波那契趋势选股「斐波检查」: 取价 + 事件回测 + 参数寻优 + 今日选股
             sentio::fib_run,
+            // 读脚本产出的前端 JSON(打包态读 app-data 可写副本,开发态读仓库 public/sentio)
+            sentio::sentio_read,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Polaris application")

@@ -30,7 +30,7 @@ async function wire() {
 }
 
 export function useFibCheck() {
-  async function start(codes?: string[]) {
+  async function start(codes?: string[], aiLlm?: boolean) {
     if (running.value) return;
     await wire();
     running.value = true;
@@ -39,7 +39,7 @@ export function useFibCheck() {
     lines.value = [];
     lastMsg.value = "正在启动取价与回测…";
     try {
-      await runFib(codes);
+      await runFib(codes, aiLlm);
     } catch (e: any) {
       running.value = false;
       ok.value = false;

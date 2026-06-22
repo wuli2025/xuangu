@@ -5,8 +5,15 @@ import {
   type FibStrategy, type FibCandidate, type AiVeto, type AiVetoResult, type MonitorStatus,
 } from "./useSentio";
 import { useFibCheck } from "./useFibCheck";
+import { useProvidersStore } from "../../stores/providers";
 
 const emit = defineEmits<{ (e: "open-report", code: string): void }>();
+
+// 左下角「供应商坞」当前选中的 API：AI 深研开启时，排雷层就走它。
+const providers = useProvidersStore();
+const apiName = computed(() => providers.current?.name || "当前 API");
+// AI 深度排雷开关（默认关，省 token/时延）；开启则用当前 API 对候选做新闻研判。
+const aiDeep = ref(false);
 
 const fib = ref<FibStrategy | null>(null);
 const aiVeto = ref<AiVeto | null>(null);
@@ -36,10 +43,11 @@ const regime = computed(() => fib.value?.regime ?? null);
 const oos = computed(() => fib.value?.validation?.walkforward ?? null);
 const sevColor: Record<string, string> = { ok: "#00e69a", warn: "#ffcf6b", err: "#ff5470" };
 async function runNow() {
-  await check.start();
+  await check.start(undefined, aiDeep.value);
 }
 onMounted(() => {
   refresh();
+  providers.refresh();
   offDone = check.onDone((d) => {
     if (d.ok) refresh();
   });
@@ -117,10 +125,21 @@ function openReport(code: string) {
           <h1>斐波选股</h1>
           <div class="lead">金叉进场 · 斐波那契止损 · 站上均线一路持有 · 截断亏损让利润奔跑</div>
         </div>
-        <button class="check" :disabled="check.running.value" @click="runNow">
-          <span class="dot" :class="{ spin: check.running.value }"></span>
-          {{ check.running.value ? "回测中…" : "斐波检查" }}
-        </button>
+        <div class="head-actions">
+          <label
+            class="aitoggle"
+            :class="{ on: aiDeep }"
+            :title="`开启后，AI 新闻排雷用左下角当前 API（${apiName}）做深度研判；关闭则只用离线关键词扫描`"
+          >
+            <input type="checkbox" v-model="aiDeep" :disabled="check.running.value" />
+            <span class="sw"><span class="knob" /></span>
+            <span class="aitxt">AI 深研 · <b>{{ apiName }}</b></span>
+          </label>
+          <button class="check" :disabled="check.running.value" @click="runNow">
+            <span class="dot" :class="{ spin: check.running.value }"></span>
+            {{ check.running.value ? "回测中…" : "斐波检查" }}
+          </button>
+        </div>
       </header>
 
       <!-- 系统健康 + 市场态势 状态条 -->
@@ -356,7 +375,16 @@ function openReport(code: string) {
 h1 { font-size: 32px; font-weight: 800; letter-spacing: -0.02em; margin: 6px 0 4px; }
 .lead { color: #8a93a8; font-size: 14px; }
 
-.check { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: #05121f;
+.head-actions { margin-left: auto; display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+.aitoggle { display: inline-flex; align-items: center; gap: 7px; cursor: pointer; user-select: none; font-size: 12px; color: #8a93a8; white-space: nowrap; }
+.aitoggle input { display: none; }
+.aitoggle .sw { width: 30px; height: 17px; border-radius: 9px; background: rgba(255,255,255,0.12); position: relative; transition: background 0.16s; flex-shrink: 0; }
+.aitoggle.on .sw { background: linear-gradient(120deg, #00e0c6, #5b8cff); }
+.aitoggle .knob { position: absolute; top: 2px; left: 2px; width: 13px; height: 13px; border-radius: 50%; background: #fff; transition: transform 0.16s; }
+.aitoggle.on .knob { transform: translateX(13px); }
+.aitoggle .aitxt b { color: #c5cde0; font-weight: 700; }
+.aitoggle.on .aitxt { color: #c5cde0; }
+.check { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: #05121f;
   background: linear-gradient(120deg, #00e0c6, #5b8cff); border: none; border-radius: 980px; padding: 9px 20px; cursor: pointer; white-space: nowrap;
   box-shadow: 0 6px 20px rgba(0, 224, 198, 0.28); transition: 0.15s; }
 .check:hover { filter: brightness(1.06); transform: translateY(-1px); }

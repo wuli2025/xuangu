@@ -45,6 +45,12 @@ jobs:
         working-directory: polaris-app
         run: npm install
 
+      # 内置 Python 运行时 + 依赖(akshare/pandas/numpy) + data-pipeline 源码 → 打进安装包资源。
+      # 用户机器开箱即用，无需自装 Python。详见 scripts/prepare_pyruntime.ps1 与 tauri.conf bundle.resources。
+      - name: Stage bundled Python runtime + pipeline
+        shell: pwsh
+        run: ./scripts/prepare_pyruntime.ps1
+
       - name: Build, sign & publish release
         uses: tauri-apps/tauri-action@v0
         env:
@@ -59,4 +65,5 @@ jobs:
           releaseBody: "查看 CHANGELOG 或提交记录了解本次更新内容。"
           releaseDraft: false
           prerelease: false
-          args: "--bundles nsis"
+          # --config 仅在打包时注入内置 Python/管线资源；主 tauri.conf 保持 resources:[] 以免破坏 dev/check。
+          args: "--bundles nsis --config src-tauri/tauri.bundle-python.conf.json"

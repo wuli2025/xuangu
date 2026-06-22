@@ -1,3 +1,5 @@
+# akshare 浮动取最新(数据源常修)；pandas/numpy 锁大版本上限，防 CI 构建拉到未验证的破坏性新版。
+# 当前验证基准：akshare 1.18.64 / pandas 3.0.3 / numpy 2.4.5（与开发环境一致）。
 akshare>=1.16.0
-pandas>=2.2.0
-numpy>=1.26.0
+pandas>=2.2.0,<3.1.0
+numpy>=1.26.0,<3.0.0

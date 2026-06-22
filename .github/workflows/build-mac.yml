@@ -2,9 +2,23 @@
 # macOS 安装包(.dmg)按需构建 —— 手动触发,产物作为 workflow artifact 下载(不发公开 Release)
 #
 # 触发：gh workflow run build-mac.yml   或 GitHub 网页 Actions → build-mac → Run workflow
-# 产物：智投顾 .dmg(Apple Silicon + Intel 各一),在 run 的 Artifacts 里下载。
+# 产物：智投顾 .dmg —— Apple Silicon(arm64,给 M1~M4)+ Intel(x86_64)各一份,
+#       在 run 的 Artifacts 里下载。两份各自内置匹配架构的 Python 运行时。
+#
+# ── 为什么是「两个分架构 dmg」而不是一个 universal 包 ──
+#   内置 Python 含 numpy/pandas/akshare 等带原生 C 扩展(.so)的库,按架构分发;
+#   python-build-standalone 无通用(universal2)运行时,故每个架构出独立 dmg 最稳妥。
+#   arm64 dmg 给 M 系列芯片;x64 dmg 给 Intel Mac。用户按自己芯片下对应包。
+#
+# ── x64 的签名顽疾已解除 ──
+#   历史上 x64 ad-hoc codesign("-")报 "code object is not signed at all",根因是当时
+#   .app 里嵌了未签名的 sidecar `polaris-server`;该 bin 已在 Cargo.toml 注释移除,桌面包
+#   只剩单个主二进制。x64 在原生 Intel runner(macos-13)上签名即可通过。
+#
 # 说明：app 采用 ad-hoc 签名(tauri.conf signingIdentity "-")，无需 Apple 开发者证书即可构建；
-#       下载后首次打开需「右键 → 打开」绕过 Gatekeeper(未公证)。
+#       但未经 Apple 公证(notarize),首次打开仍会被 Gatekeeper 拦——需「系统设置 →
+#       隐私与安全性 → 仍要打开」,或终端 `xattr -cr /Applications/智投顾.app`。
+#       要彻底免警告需 Apple Developer 证书 + notarytool 公证(后续 CI 计划)。
 # ─────────────────────────────────────────────────────────────
 name: build-mac
 
@@ -15,9 +29,9 @@ jobs:
   build-mac:
     permissions:
       contents: read
-    # 仅 Apple Silicon(arm64)——覆盖 2020 年后全部 Mac。
-    # 注：Intel(x86_64)dmg 在 CI 上 ad-hoc codesign("-")会报 "code object is not signed at all"
-    #     (macos-13 已知签名顽疾),如确需 Intel 版需配 Apple 开发者证书签名,故暂只出 arm64。
+    # 两份分架构 dmg:arm64 给 Apple Silicon(M1~M4),x64 给 Intel。
+    # 各自在原生 runner 上构建,使内置 Python 的自检/pip 与 codesign 都原生执行,
+    # 避免跨架构跑解释器(需 Rosetta)与跨架构签名的坑。
     strategy:
       fail-fast: false
       matrix:
@@ -25,6 +39,9 @@ jobs:
           - target: aarch64-apple-darwin
             arch: arm64
             os: macos-latest
+          - target: x86_64-apple-darwin
+            arch: x64
+            os: macos-13
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -47,10 +64,14 @@ jobs:
         working-directory: polaris-app
         run: npm install
 
+      # 内置 Python 运行时 + 依赖 + data-pipeline 源码 → 打进 .dmg 资源，Mac 用户开箱即用无需自装 Python。
+      - name: Stage bundled Python runtime + pipeline
+        run: bash ./scripts/prepare_pyruntime.sh 20241016 3.12.7 ${{ matrix.target }}
+
       - name: Build dmg
         working-directory: polaris-app
         # 关掉更新产物(createUpdaterArtifacts)以免依赖签名密钥;dmg 自身用 ad-hoc 签名即可。
-        run: npm run tauri build -- --target ${{ matrix.target }} --bundles dmg --config "{\"bundle\":{\"createUpdaterArtifacts\":false}}"
+        run: npm run tauri build -- --target ${{ matrix.target }} --bundles dmg --config src-tauri/tauri.bundle-python.conf.json --config "{\"bundle\":{\"createUpdaterArtifacts\":false}}"
 
       - name: Upload dmg artifact
         uses: actions/upload-artifact@v4

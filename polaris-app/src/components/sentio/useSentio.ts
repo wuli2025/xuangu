@@ -330,14 +330,30 @@ export interface AiVeto {
   note: string;
   updated_at: string;
 }
-export async function loadAiVeto(): Promise<AiVeto | null> {
+// 统一读取脚本产出的前端 JSON。
+// 桌面端优先走 Rust `sentio_read`：打包态脚本写到 app-data 可写副本，前端 fetch('/sentio/..') 只能拿到
+// 安装包里的旧副本，故必须改读可写目录的最新产物；失败/非桌面端再回退 fetch（开发态 Vite / Web 壳）。
+async function readSentio<T>(name: string): Promise<T | null> {
+  if (isTauri) {
+    try {
+      const txt = await invoke<string | null>("sentio_read", { name });
+      if (txt) return JSON.parse(txt) as T;
+    } catch {
+      /* 落到 fetch 回退 */
+    }
+  }
   try {
-    const r = await fetch(`${import.meta.env.BASE_URL || "/"}sentio/ai_veto.json?t=${Date.now()}`);
+    const base = import.meta.env.BASE_URL || "/";
+    const r = await fetch(`${base}sentio/${name}?t=${Date.now()}`);
     if (!r.ok) return null;
-    return (await r.json()) as AiVeto;
+    return (await r.json()) as T;
   } catch {
     return null;
   }
+}
+
+export async function loadAiVeto(): Promise<AiVeto | null> {
+  return readSentio<AiVeto>("ai_veto.json");
 }
 
 // ── 系统健康监控(monitor_status.json) ──
@@ -353,31 +369,23 @@ export interface MonitorStatus {
   updated_at: string;
 }
 export async function loadMonitor(): Promise<MonitorStatus | null> {
-  try {
-    const r = await fetch(`${import.meta.env.BASE_URL || "/"}sentio/monitor_status.json?t=${Date.now()}`);
-    if (!r.ok) return null;
-    return (await r.json()) as MonitorStatus;
-  } catch {
-    return null;
-  }
+  return readSentio<MonitorStatus>("monitor_status.json");
 }
 
 export async function loadFib(): Promise<FibStrategy | null> {
-  try {
-    const r = await fetch(`${import.meta.env.BASE_URL || "/"}sentio/fib_strategy.json?t=${Date.now()}`);
-    if (!r.ok) return null;
-    return (await r.json()) as FibStrategy;
-  } catch {
-    return null;
-  }
+  return readSentio<FibStrategy>("fib_strategy.json");
 }
 
 /** 触发一次斐波那契选股（取价+回测+寻优+今日选股）。进度走 fib:progress / fib:done。 */
-export async function runFib(codes?: string[]): Promise<string> {
+export async function runFib(codes?: string[], aiLlm?: boolean): Promise<string> {
   if (!isTauri) {
     throw new Error("「斐波检查」需在桌面端运行（本机 Python 取价回测）");
   }
-  return invoke<string>("fib_run", codes && codes.length ? { codes } : {});
+  // aiLlm=true → 后端开 SENTIO_AI_LLM，AI 排雷层走左下角「供应商坞」当前选中的 API。
+  const args: Record<string, unknown> = {};
+  if (codes && codes.length) args.codes = codes;
+  if (aiLlm) args.aiLlm = true;
+  return invoke<string>("fib_run", args);
 }
 export function onFibProgress(cb: (p: SentioProgress) => void) {
   return listen<SentioProgress>("fib:progress", cb);
@@ -386,26 +394,12 @@ export function onFibDone(cb: (d: SentioDone) => void) {
   return listen<SentioDone>("fib:done", cb);
 }
 
-const BASE = import.meta.env.BASE_URL || "/";
-
 export async function loadBoard(): Promise<Board | null> {
-  try {
-    const r = await fetch(`${BASE}sentio/board.json?t=${Date.now()}`);
-    if (!r.ok) return null;
-    return (await r.json()) as Board;
-  } catch {
-    return null;
-  }
+  return readSentio<Board>("board.json");
 }
 
 export async function loadStocks(): Promise<StockRec[]> {
-  try {
-    const r = await fetch(`${BASE}sentio/sentiment_latest.json?t=${Date.now()}`);
-    if (!r.ok) return [];
-    return (await r.json()) as StockRec[];
-  } catch {
-    return [];
-  }
+  return (await readSentio<StockRec[]>("sentiment_latest.json")) ?? [];
 }
 
 // 温度 → 颜色（与 PRD 色板一致：过热红 / 偏热金 / 中性灰 / 偏冷蓝 / 冰点绿）
@@ -515,13 +509,7 @@ export function useUpdatedAt() {
 }
 
 export async function loadStrategy(): Promise<Strategy | null> {
-  try {
-    const r = await fetch(`${BASE}sentio/strategy.json?t=${Date.now()}`);
-    if (!r.ok) return null;
-    return (await r.json()) as Strategy;
-  } catch {
-    return null;
-  }
+  return readSentio<Strategy>("strategy.json");
 }
 
 // ── 「立即检查」：调起本机 python 采集 + 多因子策略 + 回测 ──
@@ -536,11 +524,14 @@ export interface SentioDone {
 }
 
 /** 触发一次采集分析。返回 "started"；进度/结果走事件。非 Tauri 环境抛错。 */
-export async function runCheck(codes?: string[]): Promise<string> {
+export async function runCheck(codes?: string[], aiLlm?: boolean): Promise<string> {
   if (!isTauri) {
     throw new Error("「立即检查」需在桌面端运行（本机 Python 采集）");
   }
-  return invoke<string>("sentio_run", codes && codes.length ? { codes } : {});
+  const args: Record<string, unknown> = {};
+  if (codes && codes.length) args.codes = codes;
+  if (aiLlm) args.aiLlm = true;
+  return invoke<string>("sentio_run", args);
 }
 
 export function onCheckProgress(cb: (p: SentioProgress) => void) {

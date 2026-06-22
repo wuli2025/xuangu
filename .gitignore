@@ -13,6 +13,10 @@ data-pipeline/output/
 # 采集出的前端静态数据(运行时生成)
 polaris-app/public/sentio/*.json
 
+# ===== 内置 Python 运行时 + 打包脚本副本(由 scripts/prepare_pyruntime 生成,体积大,不入库) =====
+polaris-app/src-tauri/resources/pyruntime/
+polaris-app/src-tauri/resources/data-pipeline/
+
 # ===== 日志/截图/临时 =====
 *.log
 .dev-*.log

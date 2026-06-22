@@ -41,11 +41,14 @@ import akshare as ak
 import pandas as pd
 
 BASE = Path(__file__).resolve().parent
-DB_PATH = BASE / "data" / "sentio.db"
-OUT_DIR = BASE / "output"
+# 输出/数据目录支持环境变量覆盖：打包后脚本目录(资源)是只读的，Rust 会指到可写的 app-data 目录。
+# 不设环境变量时仍写脚本旁边，开发态行为不变。
+DATA_DIR = Path(os.environ.get("SENTIO_DATA_DIR") or (BASE / "data"))
+OUT_DIR = Path(os.environ.get("SENTIO_OUT_DIR") or (BASE / "output"))
+DB_PATH = DATA_DIR / "sentio.db"
 WATCHLIST = BASE / "watchlist.json"
 # 前端静态目录(Vite 把 public/ 映射到根路径，前端 fetch('/sentio/xxx.json'))
-FRONT_DIR = BASE.parent / "polaris-app" / "public" / "sentio"
+FRONT_DIR = Path(os.environ.get("SENTIO_FRONT_DIR") or (BASE.parent / "polaris-app" / "public" / "sentio"))
 
 W_H, W_F = 0.40, 0.35  # 温度权重(规划 H0.40/F0.35/S0.25)，MVP 无 S 按 H+F 重归一
 
@@ -62,9 +65,53 @@ def find_col(df, *keys):
     return None
 
 
-# ---------- 第①层：全市场热度（一次拉取 + 预计算分位表） ----------
+# ---------- 第①层：全市场热度（一次拉取 + 预计算分位表 + 磁盘缓存） ----------
+HEAT_CACHE = DATA_DIR / "heat_index_cache.json"
+
+
+def _load_heat_cache():
+    """命中条件：同一自然日 且 距生成 < TTL 分钟(默认180)。全市场关注指数日内变化极小，
+    缓存可省掉 ~50s 的千股千评分页抓取。SENTIO_HEAT_NOCACHE=1 强制刷新。"""
+    if os.environ.get("SENTIO_HEAT_NOCACHE") == "1" or not HEAT_CACHE.exists():
+        return None
+    try:
+        ttl = int(os.environ.get("SENTIO_HEAT_TTL_MIN", "180"))
+    except ValueError:
+        ttl = 180
+    try:
+        c = json.loads(HEAT_CACHE.read_text(encoding="utf-8"))
+        age_min = (time.time() - float(c.get("ts", 0))) / 60.0
+        if c.get("date") != dt.date.today().isoformat() or age_min > ttl:
+            return None
+        log(f"千股千评 命中缓存(生成于 {age_min:.0f} 分钟前)，跳过分页抓取")
+        return {"by_code": c.get("by_code", {}), "rank_by_code": c.get("rank_by_code", {}),
+                "sorted": c.get("sorted") or None, "hot": set(c.get("hot", []))}
+    except Exception as e:
+        log(f"千股千评 缓存读失败({type(e).__name__})，改为实时抓取")
+        return None
+
+
+def _save_heat_cache(idx):
+    try:
+        HEAT_CACHE.parent.mkdir(parents=True, exist_ok=True)
+        sorted_list = idx["sorted"]
+        if sorted_list is not None and not isinstance(sorted_list, list):
+            sorted_list = [float(x) for x in sorted_list]
+        HEAT_CACHE.write_text(json.dumps({
+            "date": dt.date.today().isoformat(), "ts": time.time(),
+            "by_code": idx["by_code"], "rank_by_code": idx["rank_by_code"],
+            "sorted": sorted_list, "hot": sorted(idx["hot"]),
+        }, ensure_ascii=False), encoding="utf-8")
+    except Exception as e:
+        log(f"千股千评 缓存写失败({type(e).__name__})，忽略")
+
+
 def build_heat_index():
-    """拉千股千评+人气榜，预计算 {code: 关注指数} 与全市场升序序列(供 O(logN) 分位)。"""
+    """拉千股千评+人气榜，预计算 {code: 关注指数} 与全市场升序序列(供 O(logN) 分位)。
+    优先用当日磁盘缓存(省掉最慢的分页抓取)。"""
+    cached = _load_heat_cache()
+    if cached is not None:
+        return cached
     idx = {"by_code": {}, "rank_by_code": {}, "sorted": None, "hot": set()}
 
     def _retry(fn, n=3):
@@ -96,6 +143,8 @@ def build_heat_index():
         log(f"东财人气榜 OK：{len(idx['hot'])} 只")
     except Exception as e:
         log(f"东财人气榜 FAIL：{type(e).__name__}: {e}")
+    if idx["by_code"]:  # 只缓存拿到了千股千评的有效结果，失败不写(免得缓存住空数据)
+        _save_heat_cache(idx)
     return idx
 
 
@@ -143,12 +192,13 @@ def fetch_fund_flow_last(code, market):
         return p[0], amt, pct
 
     last_err = None
-    for _ in range(3):  # 通道A：requests
+    for attempt in range(3):  # 通道A：requests
         try:
-            r = _rq.get(url, headers={"User-Agent": _UA}, timeout=15)
+            r = _rq.get(url, headers={"User-Agent": _UA}, timeout=12)
             return _parse(r.text)
         except Exception as e:
             last_err = e
+            time.sleep(0.4 * (attempt + 1))  # 退避：连环重试不退避会被东财直接断连(RemoteDisconnected)
     for _ in range(2):  # 通道B：curl.exe(Windows Schannel，绕代理)
         try:
             out = subprocess.run(["curl.exe", "-s", "--noproxy", "*", "--max-time", "20", url],
@@ -160,8 +210,16 @@ def fetch_fund_flow_last(code, market):
     raise last_err
 
 
+import threading
+_FUND_DEAD = threading.Event()   # 熔断：连续多只连接失败→判定接口不可达，剩余直接秒回中性
+_FUND_FAILS = [0]
+_FUND_LOCK = threading.Lock()
+
+
 def capital_score(code, market):
     evidence, f = {}, 50.0
+    if _FUND_DEAD.is_set():  # 已熔断：不再发网络请求，直接中性
+        return f, {"资金": "拉取失败"}
     try:
         date, amt, pct = fetch_fund_flow_last(code, market)
         if pct is None and amt is None:
@@ -176,6 +234,12 @@ def capital_score(code, market):
     except Exception as e:
         log(f"  {code} 资金流 FAIL：{type(e).__name__}: {str(e)[:50]}")
         evidence["资金"] = "拉取失败"
+        with _FUND_LOCK:  # 累计失败到阈值就熔断，避免对死接口逐只死等
+            _FUND_FAILS[0] += 1
+            if not _FUND_DEAD.is_set() and _FUND_FAILS[0] >= 6:
+                _FUND_DEAD.set()
+                log("  [!] 资金流接口连续失败已熔断：剩余标的资金维度直接降级中性"
+                    "(多为本机代理/网络拦截东财，换网或关代理可恢复)")
     return round(f, 1), evidence
 
 
@@ -278,11 +342,34 @@ def main():
     breadth = fetch_market_breadth()
     con = init_db()
 
-    # 资金流顺序抓取：并发的多条大响应会触发 TLS bad record mac；顺序+礼貌延迟降东财限流。
+    # 资金流并发抓取：每条只取 3 个字段(最小响应)，并发也不会触发 TLS bad record mac；
+    # 比旧的「逐股 sleep(0.6)」快约 5 倍。打印 [i/n] 让前端进度条能推进(否则这 20s 卡着不动)。
+    # 并发数可经 SENTIO_FUND_WORKERS 调；东财限流则调小。
+    from concurrent.futures import ThreadPoolExecutor, as_completed
     cap_map = {}
-    for s in wl:
-        cap_map[s["code"]] = capital_score(s["code"], s.get("market", "sh"))
-        time.sleep(0.6)
+    total = len(wl)
+    try:
+        workers = int(os.environ.get("SENTIO_FUND_WORKERS", "6"))
+    except ValueError:
+        workers = 6
+    workers = max(1, min(workers, total))
+    log(f"资金流并发抓取 · {total} 只 · {workers} 线程")
+    with ThreadPoolExecutor(max_workers=workers) as ex:
+        futs = {ex.submit(capital_score, s["code"], s.get("market", "sh")): s for s in wl}
+        done = 0
+        for fut in as_completed(futs):
+            s = futs[fut]
+            ok = True
+            try:
+                res = fut.result()
+                cap_map[s["code"]] = res
+                ok = res[1].get("资金") not in ("拉取失败", "无数据")
+            except Exception as e:  # capital_score 内部已兜底，这里只是双保险
+                cap_map[s["code"]] = (50.0, {"资金": "拉取失败"})
+                ok = False
+                log(f"  {s['code']} 资金流 FAIL：{type(e).__name__}: {str(e)[:50]}")
+            done += 1
+            log(f"[{done}/{total}] {s['code']} 资金流 {'OK' if ok else '降级中性'}")
 
     results = []
     for s in wl:
