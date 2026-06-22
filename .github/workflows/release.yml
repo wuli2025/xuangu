@@ -67,3 +67,30 @@ jobs:
           prerelease: false
           # --config 仅在打包时注入内置 Python/管线资源；主 tauri.conf 保持 resources:[] 以免破坏 dev/check。
           args: "--bundles nsis --config src-tauri/tauri.bundle-python.conf.json"
+
+      # 兜底:tauri-action 偶发 "Signature not found for the updater JSON. Skipping upload..."(用 --config 打包时
+      # 它找不到 .sig 来生成清单)。若 release 缺 latest.json,这里从 .sig 现造一份上传,保证远程更新端点永不 404。
+      - name: Ensure latest.json (fallback)
+        if: success()
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $names = gh release view $tag --json assets --jq '.assets[].name'
+          if ($names -match 'latest\.json') { Write-Host "latest.json 已存在,跳过"; exit 0 }
+          $sigFile = Get-ChildItem polaris-app/src-tauri/target/release/bundle/nsis/*.sig -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $sigFile) { Write-Error "未找到 .sig,无法生成 latest.json"; exit 1 }
+          $sig = (Get-Content $sigFile.FullName -Raw).Trim()
+          $exeUrl = gh release view $tag --json assets --jq '.assets[] | select(.name|endswith(\".exe\")) | .url'
+          $ver = $tag.TrimStart('v')
+          $obj = [ordered]@{
+            version  = $ver
+            notes    = "智投顾 $ver 自动更新"
+            pub_date = (Get-Date -Format "yyyy-MM-ddTHH:mm:ssZ")
+            platforms = [ordered]@{ "windows-x86_64" = [ordered]@{ signature = $sig; url = $exeUrl } }
+          }
+          $json = $obj | ConvertTo-Json -Depth 6
+          [System.IO.File]::WriteAllText("$PWD/latest.json", $json, (New-Object System.Text.UTF8Encoding $false))
+          gh release upload $tag latest.json --clobber
+          Write-Host "[OK] latest.json 已生成并上传 → 远程更新端点可达"
