@@ -52,14 +52,24 @@ jobs:
             --notes "$notes" \
             --draft=false \
             --prerelease=false || true
-          release_id=$(gh release view "$tag" --json id -q '.id')
+          # ⚠️ 必须取「数字 release id」(databaseId)，不能用 `gh release view --json id`——
+          # 那返回的是 GraphQL node_id(形如 RE_kwDO...)，tauri-action 解析不了会判定
+          # releaseId 为空 → "No releaseId or tagName provided, skipping all uploads"
+          # → Release 零产物 → latest.json 永远生不出来 → 客户端报「Could not fetch a valid release JSON」。
+          release_id=$(gh api "repos/${{ github.repository }}/releases/tags/$tag" --jq '.id')
           echo "release_id=$release_id" >> "$GITHUB_OUTPUT"
+          echo "[OK] numeric release_id=$release_id"
 
-  # ── 三平台并行构建、签名、上传 ──
+  # ── 双平台并行构建、签名、上传（Windows x64 + macOS arm64）──
   build:
     needs: create-release
     permissions:
       contents: write
+    # ⚠️ 曾经有 macos-13(Intel) 这一档，但 GitHub 免费额度的 Intel macOS runner 极度紧张，
+    # v1.0.3 那次它在 queued 卡了 24h+ 始终没被调度 → combine-latest-json(needs 整个 build 矩阵)
+    # 永远等不到它 → latest.json 生不出来。Apple Silicon(aarch64) 已覆盖 2020 年后全部 Mac，
+    # Intel Mac 用户对本应用近乎为零，故移除该档以保证发版可靠完成。
+    # 若日后确需 Intel Mac：可在 macos-latest(arm) 上交叉编译 x86_64-apple-darwin，而非依赖稀缺的 Intel runner。
     strategy:
       fail-fast: false
       matrix:
@@ -70,10 +80,8 @@ jobs:
           - platform: macos-latest
             target: aarch64-apple-darwin
             bundle: app
-          - platform: macos-13
-            target: x86_64-apple-darwin
-            bundle: app
     runs-on: ${{ matrix.platform }}
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
 
@@ -119,7 +127,7 @@ jobs:
           releaseId: ${{ needs.create-release.outputs.release_id }}
           args: "--bundles ${{ matrix.bundle }} --target ${{ matrix.target }} --config src-tauri/tauri.bundle-python.conf.json"
 
-  # ── 等 matrix 全部跑完，把三平台 .sig 合并成一份 latest.json 上传到 Release ──
+  # ── 等 matrix 全部跑完，把两平台 .sig 合并成一份 latest.json 上传到 Release ──
   combine-latest-json:
     needs: [create-release, build]
     permissions:
@@ -164,12 +172,10 @@ jobs:
           arm_url=$(asset_url 'endswith("_aarch64.app.tar.gz")')
           arm_sig=$(read_sig "$(basename "$arm_url")")
 
-          x64_url=$(asset_url 'endswith("_x86_64.app.tar.gz")')
-          x64_sig=$(read_sig "$(basename "$x64_url")")
-
-          # 任一平台缺签名都报错，避免发出缺胳膊少腿的 latest.json
-          if [ -z "$win_sig" ] || [ -z "$arm_sig" ] || [ -z "$x64_sig" ]; then
-            echo "[ERROR] 缺失签名：win=${win_sig:+OK} arm=${arm_sig:+OK} x64=${x64_sig:+OK}"
+          # 两个平台缺任一签名都报错，避免发出缺胳膊少腿的 latest.json
+          if [ -z "$win_sig" ] || [ -z "$arm_sig" ]; then
+            echo "[ERROR] 缺失签名：win=${win_sig:+OK} arm=${arm_sig:+OK}"
+            echo "[ERROR] win_url=$win_url arm_url=$arm_url"
             exit 1
           fi
 
@@ -179,17 +185,16 @@ jobs:
             --arg pub_date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             --arg win_sig "$win_sig" --arg win_url "$win_url" \
             --arg arm_sig "$arm_sig" --arg arm_url "$arm_url" \
-            --arg x64_sig "$x64_sig" --arg x64_url "$x64_url" \
             '{
               version: $version,
               notes: $notes,
               pub_date: $pub_date,
               platforms: {
                 "windows-x86_64": { signature: $win_sig, url: $win_url },
-                "darwin-aarch64": { signature: $arm_sig, url: $arm_url },
-                "darwin-x86_64": { signature: $x64_sig, url: $x64_url }
+                "darwin-aarch64": { signature: $arm_sig, url: $arm_url }
               }
             }' > latest.json
 
+          cat latest.json
           gh release upload "$tag" latest.json --clobber
-          echo "[OK] latest.json 已合并上传（windows-x86_64 / darwin-aarch64 / darwin-x86_64）"
+          echo "[OK] latest.json 已合并上传（windows-x86_64 / darwin-aarch64）"

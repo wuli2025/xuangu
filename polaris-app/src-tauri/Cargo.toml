@@ -9,7 +9,7 @@ resolver = "2"
 
 [package]
 name = "polaris-app"
-version = "1.0.3"
+version = "1.0.4"
 description = "智投顾 - AI 智能选股舆情终端"
 authors = ["winner3388"]
 edition = "2021"
