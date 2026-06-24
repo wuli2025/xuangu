@@ -355,6 +355,18 @@ export interface DiagProvenance {
   last_close: number; verified: boolean;
 }
 export interface DiagHolding { cost: number | null; shares: number; pnl_pct: number; }
+export interface BestExit {
+  urgency: "now" | "soon" | "trail" | "hold" | "na";
+  headline: string;
+  trail_stop: number;
+  hard_stop: number;
+  take_profit_1: number | null;
+  take_profit_2: number | null;
+  triggers: string[];
+  cost?: number;
+  pnl_pct?: number;
+  advice?: string;
+}
 export interface Diagnosis {
   code: string; name: string; sector: string;
   verdict: string; action: string;
@@ -367,6 +379,7 @@ export interface Diagnosis {
   fib_signal: FibCandidate | null;
   strategies: DiagStrategy[];
   hist: DiagHist | null;
+  best_exit: BestExit | null;
   holding: DiagHolding | null;
   position_note: string | null;
   provenance: DiagProvenance;
@@ -502,6 +515,23 @@ export async function saveHoldings(positions: Holding[]): Promise<void> {
   await writeConfig("holdings.json", { positions });
 }
 
+// ── 用户自定义信源：让用户登记自己想关注的渠道，与内置信源目录合并展示 ──
+export interface UserSource {
+  name: string;
+  provider: string;
+  api?: string;
+  feeds?: string;
+  method?: string;
+  note?: string;
+}
+export async function loadUserSources(): Promise<UserSource[]> {
+  const d = await readConfig<{ sources: UserSource[] }>("user_sources.json");
+  return d?.sources ?? [];
+}
+export async function saveUserSources(sources: UserSource[]): Promise<void> {
+  await writeConfig("user_sources.json", { sources });
+}
+
 // ── 券商对接 / 账户管理(easytrader) ──
 export interface AcctBalance { cash: number; market_value: number; total: number; frozen: number; }
 export interface AcctPosition {
@@ -555,6 +585,52 @@ export async function brokerOrder(
 }
 export async function brokerResetSim(): Promise<{ ok: boolean; msg: string }> {
   return brokerCmd<{ ok: boolean; msg: string }>(["reset-sim"]);
+}
+
+// ── 一键连接：渠道探测 / 连接 / 东财授权 ──
+export interface Channel {
+  key: string;
+  name: string;
+  kind: "sim" | "eastmoney_web" | "easytrader";
+  hint: string;
+  ready: boolean;
+  exe?: string;
+  candidates?: string[];
+  can_authorize?: boolean;
+  authorized?: boolean;
+}
+export interface DetectResult {
+  ok: boolean;
+  channels: Channel[];
+  xiadan_found: string[];
+  selenium: boolean;
+}
+export interface ConnectResult {
+  ok: boolean;
+  channel: string;
+  connected: boolean;
+  msg?: string;
+  error?: string;
+  need?: "exe" | "authorize";
+  candidates?: string[];
+  account?: Account;
+}
+/** 探测本机可连接的渠道（已装客户端/东财授权态）。耗时操作（扫盘+注册表）。 */
+export async function brokerDetect(): Promise<DetectResult> {
+  return brokerCmd<DetectResult>(["detect"]);
+}
+/** 一键连接某渠道；easytrader 渠道可带 exe 路径。 */
+export async function brokerConnect(channel: string, exe?: string): Promise<ConnectResult> {
+  const args = ["connect", channel];
+  if (exe) args.push(exe);
+  return brokerCmd<ConnectResult>(args);
+}
+/** 东方财富一键授权：弹出官方登录页，登录完成后取会话并连接。会阻塞到登录完成/超时。 */
+export async function brokerEastmoneyAuth(): Promise<ConnectResult & { need?: string }> {
+  return brokerCmd<ConnectResult & { need?: string }>(["eastmoney-auth"]);
+}
+export async function brokerEastmoneyLogout(): Promise<{ ok: boolean; msg: string }> {
+  return brokerCmd<{ ok: boolean; msg: string }>(["eastmoney-logout"]);
 }
 export async function loadBrokerConfig(): Promise<BrokerConfig> {
   const d = await readConfig<BrokerConfig>("broker_config.json");

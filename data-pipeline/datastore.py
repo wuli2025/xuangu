@@ -66,7 +66,12 @@ def log(m):
 # ───────────────────────── DB ─────────────────────────
 def _con():
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    con = sqlite3.connect(DB_PATH)
+    con = sqlite3.connect(DB_PATH, timeout=10)
+    # WAL + busy_timeout：允许「多线程各持一连接」并发读写不互斥失败（diagnose 并行取价依赖此），
+    # 读不阻塞写、写不阻塞读；synchronous=NORMAL 在 WAL 下兼顾安全与速度。
+    con.execute("PRAGMA journal_mode=WAL")
+    con.execute("PRAGMA busy_timeout=10000")
+    con.execute("PRAGMA synchronous=NORMAL")
     con.execute("""CREATE TABLE IF NOT EXISTS prices(
         code TEXT, date TEXT, open REAL, high REAL, low REAL, close REAL, vol REAL,
         PRIMARY KEY(code, date))""")

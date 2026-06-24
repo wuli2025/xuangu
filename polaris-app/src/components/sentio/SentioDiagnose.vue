@@ -178,6 +178,18 @@ function pfText(d: Diagnosis): string {
   const pf = d.hist.profit_factor;
   return `回测 ${d.hist.trades} 笔 · 胜率 ${d.hist.win_rate}% · 期望 ${d.hist.expectancy_r}R · 盈亏比 ${pf ?? "—"}`;
 }
+
+// 卖出时机紧迫度 → 标签 + 颜色
+const EXIT_URGENCY: Record<string, { label: string; color: string }> = {
+  now: { label: "尽快卖出", color: "#ff5470" },
+  soon: { label: "临近卖点", color: "#ffcf6b" },
+  trail: { label: "移动止盈持有", color: "#33e0ff" },
+  hold: { label: "按纪律持有", color: "#8a93a8" },
+  na: { label: "暂无卖点", color: "#8a93a8" },
+};
+function exitMeta(u: string) {
+  return EXIT_URGENCY[u] ?? EXIT_URGENCY.hold;
+}
 </script>
 
 <template>
@@ -309,6 +321,27 @@ function pfText(d: Diagnosis): string {
           <!-- 持仓视角 -->
           <div v-if="d.position_note" class="posnote">
             <b>持仓</b>{{ d.position_note }}
+          </div>
+
+          <!-- 卖出时机：什么时候卖最好 -->
+          <div v-if="d.best_exit" class="exit" :style="{ '--ec': exitMeta(d.best_exit.urgency).color }">
+            <div class="ehead">
+              <span class="etag">卖出时机</span>
+              <span class="eurg">{{ exitMeta(d.best_exit.urgency).label }}</span>
+            </div>
+            <div class="ehl">{{ d.best_exit.headline }}</div>
+            <div v-if="d.best_exit.advice" class="eadvice">
+              <b>你的持仓</b>{{ d.best_exit.advice }}
+            </div>
+            <div class="elevels">
+              <div class="el"><span>移动止盈</span><b class="cyan">{{ d.best_exit.trail_stop }}</b></div>
+              <div class="el" v-if="d.best_exit.take_profit_1"><span>止盈①</span><b class="grn">{{ d.best_exit.take_profit_1 }}</b></div>
+              <div class="el" v-if="d.best_exit.take_profit_2"><span>止盈②</span><b class="grn">{{ d.best_exit.take_profit_2 }}</b></div>
+              <div class="el"><span>硬止损</span><b class="red">{{ d.best_exit.hard_stop }}</b></div>
+            </div>
+            <ul class="etrig">
+              <li v-for="(t, ti) in d.best_exit.triggers" :key="ti">{{ t }}</li>
+            </ul>
           </div>
 
           <!-- 多策略契合度 -->
@@ -463,6 +496,29 @@ h1 { font-size: 32px; font-weight: 800; letter-spacing: -0.02em; margin: 6px 0 0
 .lv i { font-size: 10.5px; color: #8a93a8; font-style: normal; }
 
 .posnote { font-size: 12.5px; color: #ffcf6b; background: rgba(255,207,107,0.08); border-radius: 9px; padding: 8px 11px; margin-bottom: 10px; line-height: 1.55; }
+
+.exit {
+  border: 1px solid color-mix(in srgb, var(--ec) 35%, transparent);
+  border-left: 3px solid var(--ec);
+  background: color-mix(in srgb, var(--ec) 7%, transparent);
+  border-radius: 11px; padding: 11px 13px; margin: 12px 0;
+}
+.ehead { display: flex; align-items: center; gap: 9px; margin-bottom: 7px; }
+.etag { font-size: 11px; font-weight: 700; color: #8a93a8; letter-spacing: 0.04em; }
+.eurg { font-size: 11px; font-weight: 700; color: var(--ec); background: color-mix(in srgb, var(--ec) 16%, transparent); padding: 2px 9px; border-radius: 980px; }
+.ehl { font-size: 12.5px; color: #e8ecf4; line-height: 1.6; }
+.eadvice { font-size: 12px; color: #ffcf6b; line-height: 1.55; margin-top: 7px; }
+.eadvice b { color: #6b7384; font-weight: 600; font-size: 11px; margin-right: 6px; }
+.elevels { display: flex; flex-wrap: wrap; gap: 7px; margin: 9px 0 4px; }
+.el { background: rgba(0,0,0,0.22); border-radius: 8px; padding: 5px 10px; display: flex; align-items: baseline; gap: 5px; }
+.el span { font-size: 10.5px; color: #6b7384; }
+.el b { font-size: 13px; font-family: "SF Mono", Consolas, monospace; }
+.el b.red { color: #ff5470; }
+.el b.grn { color: #00e69a; }
+.el b.cyan { color: #33e0ff; }
+.etrig { margin: 6px 0 0; padding-left: 16px; }
+.etrig li { font-size: 11.5px; color: #9aa3b5; line-height: 1.7; }
+
 
 .strats { display: flex; flex-direction: column; gap: 8px; margin: 12px 0; }
 .srow { }

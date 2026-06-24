@@ -1,7 +1,8 @@
 <script setup lang="ts">
-// 信源板块：把当前实际在采集的信源 + 采集方式编成目录，并预留「规划中」分组供后续扩展。
-// 新增一个信源 = 在 SOURCE_GROUPS 里加一条 Source；真正落地采集再到 data-pipeline/ 加对应函数并写 *.json。
-import { computed } from "vue";
+// 信源板块：把当前实际在采集的信源 + 采集方式编成目录，并支持用户自定义登记自己想关注的渠道。
+// 内置信源 = SOURCE_GROUPS（与 data-pipeline 脚本一一对应）；用户信源落 user_sources.json，可增删。
+import { computed, onMounted, ref } from "vue";
+import { loadUserSources, saveUserSources, type UserSource } from "./useSentio";
 
 type Status = "live" | "partial" | "planned";
 interface Source {
@@ -219,6 +220,59 @@ const STATUS_LABEL: Record<Status, string> = {
   partial: "部分 / 受限",
   planned: "规划中",
 };
+
+// ── 用户自定义信源 ──
+const userSources = ref<UserSource[]>([]);
+const showAdd = ref(false);
+const saveMsg = ref("");
+const draft = ref<UserSource>({ name: "", provider: "", api: "", feeds: "", method: "", note: "" });
+
+async function refreshUser() {
+  userSources.value = await loadUserSources();
+}
+function resetDraft() {
+  draft.value = { name: "", provider: "", api: "", feeds: "", method: "", note: "" };
+}
+let saveTimer: number | undefined;
+function flash(msg: string) {
+  saveMsg.value = msg;
+  clearTimeout(saveTimer);
+  saveTimer = window.setTimeout(() => (saveMsg.value = ""), 2200);
+}
+async function addUserSource() {
+  const d = draft.value;
+  if (!d.name.trim()) {
+    flash("请填写信源名称");
+    return;
+  }
+  userSources.value.push({
+    name: d.name.trim(),
+    provider: d.provider.trim() || "自定义",
+    api: d.api?.trim() || "",
+    feeds: d.feeds?.trim() || "",
+    method: d.method?.trim() || "",
+    note: d.note?.trim() || "",
+  });
+  try {
+    await saveUserSources(userSources.value);
+    flash("已保存");
+    resetDraft();
+    showAdd.value = false;
+  } catch (e) {
+    flash("保存失败：" + e);
+  }
+}
+async function removeUserSource(i: number) {
+  userSources.value.splice(i, 1);
+  try {
+    await saveUserSources(userSources.value);
+    flash("已删除");
+  } catch (e) {
+    flash("保存失败：" + e);
+  }
+}
+
+onMounted(refreshUser);
 </script>
 
 <template>
@@ -269,9 +323,57 @@ const STATUS_LABEL: Record<Status, string> = {
         </div>
       </div>
 
+      <!-- 我的信源（用户自定义登记） -->
+      <div class="group">
+        <div class="ghead">
+          <span class="gtitle">⑦ 我的信源</span>
+          <span class="gdesc">你自己想关注的渠道，登记后留存（落 user_sources.json）</span>
+          <button class="addbtn" @click="showAdd = !showAdd">{{ showAdd ? "收起" : "＋ 添加信源" }}</button>
+        </div>
+
+        <!-- 添加表单 -->
+        <div v-if="showAdd" class="addform">
+          <div class="frow">
+            <input v-model="draft.name" placeholder="信源名称 *（如：同花顺问财热榜）" />
+            <input v-model="draft.provider" placeholder="数据提供方（如：同花顺）" />
+          </div>
+          <div class="frow">
+            <input v-model="draft.api" placeholder="接口 / 函数 / 链接（可选）" />
+            <input v-model="draft.feeds" placeholder="用于哪一层 / 用途（可选）" />
+          </div>
+          <input v-model="draft.method" class="full" placeholder="采集方式要点（可选）" />
+          <input v-model="draft.note" class="full" placeholder="备注（可选）" />
+          <div class="fbtns">
+            <button class="btn primary" @click="addUserSource">保存</button>
+            <button class="btn ghost" @click="showAdd = false">取消</button>
+            <span v-if="saveMsg" class="savemsg">{{ saveMsg }}</span>
+          </div>
+        </div>
+        <div v-else-if="saveMsg" class="savemsg solo">{{ saveMsg }}</div>
+
+        <div class="srclist">
+          <div v-for="(s, i) in userSources" :key="i" class="srow live">
+            <div class="stop">
+              <span class="sname">{{ s.name }}</span>
+              <span class="sbadge live">我的</span>
+              <span class="sprov">{{ s.provider }}</span>
+              <button class="delx" title="删除" @click="removeUserSource(i)">×</button>
+            </div>
+            <div class="sapi" v-if="s.api"><code>{{ s.api }}</code></div>
+            <div class="sfeeds" v-if="s.feeds"><b>用于</b>{{ s.feeds }}</div>
+            <div class="smethod" v-if="s.method"><b>采集</b>{{ s.method }}</div>
+            <div class="smethod" v-if="s.note"><b>备注</b>{{ s.note }}</div>
+          </div>
+          <div v-if="!userSources.length" class="srow empty-row">
+            还没有自定义信源。点右上角「＋ 添加信源」登记你想关注的渠道。
+          </div>
+        </div>
+      </div>
+
       <p class="foot">
-        新增信源：在 <code>SentioSources.vue</code> 的 <code>SOURCE_GROUPS</code> 加一条；落地采集在
-        <code>data-pipeline/</code> 增对应函数并写入 <code>public/sentio/*.json</code>。研究参考，非投资建议。
+        想关注更多渠道？直接在上方<b>「⑦ 我的信源」</b>点「＋ 添加信源」登记即可，留存在本机
+        <code>user_sources.json</code>。需要真正落地自动采集的，再到 <code>data-pipeline/</code>
+        增对应函数并写入 <code>public/sentio/*.json</code>。研究参考，非投资建议。
       </p>
     </div>
   </div>
@@ -347,4 +449,35 @@ h1 { font-size: 32px; font-weight: 800; letter-spacing: -0.02em; margin: 6px 0 0
   font-family: "SF Mono", Consolas, monospace; color: #a9d8ff;
   background: rgba(255, 255, 255, 0.06); padding: 1px 6px; border-radius: 5px; font-size: 11px;
 }
+
+/* 我的信源 */
+.addbtn {
+  margin-left: auto; border: 1px solid rgba(91,140,255,0.4); background: rgba(91,140,255,0.12);
+  color: #a9d8ff; font-size: 12px; padding: 5px 12px; border-radius: 8px; cursor: pointer;
+}
+.addbtn:hover { background: rgba(91,140,255,0.2); }
+.addform {
+  border: 1px solid rgba(255,255,255,0.1); border-radius: 14px; padding: 14px; margin-bottom: 12px;
+  background: rgba(255,255,255,0.04); display: flex; flex-direction: column; gap: 10px;
+}
+.frow { display: flex; gap: 10px; }
+.addform input {
+  flex: 1; min-width: 0; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 8px; color: #f0f3fa; font-size: 13px; padding: 8px 11px;
+}
+.addform input.full { width: 100%; }
+.addform input:focus { outline: none; border-color: #5b8cff; }
+.fbtns { display: flex; align-items: center; gap: 10px; }
+.btn { border: none; border-radius: 9px; font-size: 13px; padding: 8px 18px; cursor: pointer; }
+.btn.primary { background: linear-gradient(120deg, #5b8cff, #00e0c6); color: #04121a; font-weight: 700; }
+.btn.ghost { background: rgba(255,255,255,0.07); color: #c4cad6; }
+.savemsg { font-size: 12px; color: #00e69a; }
+.savemsg.solo { margin-bottom: 10px; }
+.delx {
+  border: none; background: transparent; color: #6b7384; font-size: 18px; line-height: 1;
+  cursor: pointer; padding: 0 2px;
+}
+.delx:hover { color: #ff5470; }
+.empty-row { color: #6b7384; font-size: 12.5px; }
+
 </style>

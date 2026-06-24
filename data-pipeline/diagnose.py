@@ -242,6 +242,66 @@ def _strategies(f: dict, fib_sig) -> list:
     return out
 
 
+# ───────────────────────── 卖出时机（什么时候卖最好） ─────────────────────────
+def _exit_plan(f: dict, fib_sig, tier: str, close: float, stop: float,
+               t1, t2, holding) -> dict:
+    """回答「这票最近什么时候卖最好」：给移动止盈线 + 目标兑现位 + 硬止损 + 技术卖出触发 + 紧迫度。
+    全部基于真实因子推演，对持仓再叠加盈亏视角。urgency: now(立即) / soon(临近) / trail(持有移动止盈) / hold(持有) / na(无持仓信号)。"""
+    ma20, ma60, ema34 = f["ma20"], f["ma60"], f["ema34"]
+    rsi, dist20 = f["rsi"], f["dist_ma20_pct"]
+    # 移动止盈线：趋势健康用 EMA34（更贴），破位风险用 MA20/MA60 兜底
+    trail = round(max(ema34, ma20 * 0.99), 2) if f["above_ma60"] else round(ma60, 2)
+
+    triggers = []                                  # 技术卖出触发条件（命中即考虑卖）
+    if f["above_ma60"]:
+        triggers.append(f"收盘跌破移动止盈线 EMA34({ema34}) → 减/清")
+    triggers.append(f"收盘跌破 MA60({ma60}) → 趋势转弱，清仓")
+    if rsi >= 78:
+        triggers.append(f"RSI={rsi} 高位，若冲高滞涨/量价背离 → 分批止盈")
+    if t2:
+        triggers.append(f"摸到目标② {t2} → 至少减半仓落袋")
+    triggers.append(f"跌破硬止损 {round(stop,2)} → 无条件离场（不补仓）")
+
+    # 紧迫度 + 一句话最佳卖点
+    if tier == "danger":
+        urgency, head = "now", "趋势已坏，反弹即是卖点——逢高减仓为主，别幻想反转。"
+    elif tier == "warn":
+        urgency, head = "soon", f"短期过热（RSI={rsi}/乖离 {dist20}%），冲高滞涨或放量长上影即分批止盈，留底仓跟趋势。"
+    elif tier in ("hold", "buy") and f["above_ma60"]:
+        urgency, head = "trail", f"趋势健康，不急于卖：用 EMA34({ema34}) 移动止盈，回踩不破一路持有；收盘跌破才走，目标位 {t2 or t1 or '—'} 分批兑现。"
+    else:
+        urgency, head = "hold", "信号中性，按纪律持有：跌破移动止盈线或硬止损再卖，不预测顶。"
+
+    plan = {
+        "urgency": urgency,
+        "headline": head,
+        "trail_stop": trail,                       # 移动止盈线（盈利保护）
+        "hard_stop": round(stop, 2),               # 硬止损（亏损封顶）
+        "take_profit_1": t1,                       # 第一目标（减半）
+        "take_profit_2": t2,                       # 第二目标（清/留小底仓）
+        "triggers": triggers,
+    }
+
+    # —— 持仓视角：登记了成本，给出针对你这笔的卖出建议 ——
+    if holding and holding.get("cost"):
+        cost = float(holding["cost"])
+        pnl = round((close / cost - 1) * 100, 1)
+        plan["cost"] = cost
+        plan["pnl_pct"] = pnl
+        be = round(cost * 1.005, 2)                # 保本位（含手续费略上移）
+        if pnl >= 20:
+            plan["advice"] = (f"已浮盈 {pnl}%，利润丰厚：止损上移到 {trail} 锁定大部分利润，"
+                              f"破 EMA34 减半、破 MA60 清仓；目标 {t2 or t1 or '—'} 主动减。")
+        elif pnl >= 0:
+            plan["advice"] = (f"浮盈 {pnl}%：把止损上移到保本位 {be} 之上，立于不败；"
+                              f"趋势不破继续持有，破 {trail} 减仓。")
+        else:
+            plan["advice"] = (f"浮亏 {pnl}%：" + (
+                f"已逼近/跌破止损 {round(stop,2)}，按纪律止损，不越跌越买。" if close <= stop * 1.03
+                else f"未破位可持有，但反弹到 {be}(保本) 附近若仍走弱可先减；跌破 {round(stop,2)} 坚决止损。"))
+    return plan
+
+
 # ───────────────────────── 综合诊断 ─────────────────────────
 def _synthesize(code, name, sector, f, fib_sig, strategies, hist, holding):
     """把因子 + 多策略融成一句话结论 + 动作 + 时机 + 价位。"""
@@ -334,6 +394,7 @@ def _synthesize(code, name, sector, f, fib_sig, strategies, hist, holding):
         "fib_signal": fib_sig,
         "strategies": strategies,
         "hist": hist,
+        "best_exit": _exit_plan(f, fib_sig, tier, close, stop, t1, t2, holding),
         "holding": ({"cost": holding.get("cost"), "shares": holding.get("shares"),
                      "pnl_pct": round((close / holding["cost"] - 1) * 100, 1)} if holding and holding.get("cost") else None),
         "position_note": pos_note,
@@ -392,13 +453,41 @@ def main():
     holdings = _load_holdings()
     cfg = FibConfig()
     log(f"自选诊断启动 · {len(codes)} 只 · 基于真实落库行情")
+    # 并行取价诊断：每只各开独立 SQLite 连接（datastore 已开 WAL，多线程读写安全），
+    # 网络取价是瓶颈，并行后 12 只从「逐只串行」降到接近单只耗时。串行回退：SENTIO_DIAG_WORKERS=1。
+    try:
+        workers = int(os.environ.get("SENTIO_DIAG_WORKERS", "5"))
+    except ValueError:
+        workers = 5
+    workers = max(1, min(workers, len(codes) or 1))
+    results_map: dict = {}
+    if workers > 1 and len(codes) > 1:
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        log(f"并行诊断 · {workers} 线程")
+        with ThreadPoolExecutor(max_workers=workers) as ex:
+            futs = {ex.submit(diagnose_one, code, name_map, holdings, cfg): (i, code)
+                    for i, code in enumerate(codes)}
+            done = 0
+            for fut in as_completed(futs):
+                i, code = futs[fut]
+                done += 1
+                try:
+                    results_map[i] = fut.result()
+                except Exception as e:  # diagnose_one 内已兜底，这里双保险
+                    results_map[i] = {"code": code, "name": code, "sector": "",
+                                      "error": f"诊断异常: {type(e).__name__}: {str(e)[:40]}"}
+                log(f"  [{done}/{len(codes)}] {code} 诊断完成")
+    else:
+        for i, code in enumerate(codes):
+            log(f"  [{i+1}/{len(codes)}] 诊断 {code} …")
+            results_map[i] = diagnose_one(code, name_map, holdings, cfg)
+    # 还原输入顺序
     diags, failed = [], []
-    for i, code in enumerate(codes):
-        log(f"  [{i+1}/{len(codes)}] 诊断 {code} …")
-        d = diagnose_one(code, name_map, holdings, cfg)
+    for i in range(len(codes)):
+        d = results_map[i]
         if d.get("error"):
-            failed.append({"code": code, "error": d["error"]})
-            log(f"     ✗ {d['error']}")
+            failed.append({"code": d.get("code", codes[i]), "error": d["error"]})
+            log(f"     ✗ {codes[i]} {d['error']}")
         diags.append(d)
     # 按「可操作性」排序：买入>持有>低吸>观望>减仓>回避，再按置信度
     order = {"buy": 0, "hold": 1, "wait": 3, "warn": 4, "danger": 5}

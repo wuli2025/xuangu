@@ -435,7 +435,7 @@ fn config_dir(app: &AppHandle) -> Option<PathBuf> {
 /// 读自选股 / 持仓配置 JSON。仅放行已知文件名，杜绝路径穿越。无文件返回 None（前端按空处理）。
 #[tauri::command]
 pub fn diag_config_read(app: AppHandle, name: String) -> Option<String> {
-    const ALLOW: &[&str] = &["my_watchlist.json", "holdings.json", "broker_config.json"];
+    const ALLOW: &[&str] = &["my_watchlist.json", "holdings.json", "broker_config.json", "user_sources.json"];
     if !ALLOW.contains(&name.as_str()) {
         return None;
     }
@@ -446,7 +446,7 @@ pub fn diag_config_read(app: AppHandle, name: String) -> Option<String> {
 /// 写自选股 / 持仓配置 JSON（前端「自选/账户」面板增删后落盘）。仅放行已知文件名。
 #[tauri::command]
 pub fn diag_config_write(app: AppHandle, name: String, content: String) -> Result<(), String> {
-    const ALLOW: &[&str] = &["my_watchlist.json", "holdings.json", "broker_config.json"];
+    const ALLOW: &[&str] = &["my_watchlist.json", "holdings.json", "broker_config.json", "user_sources.json"];
     if !ALLOW.contains(&name.as_str()) {
         return Err("非法配置名".into());
     }
@@ -469,7 +469,11 @@ pub fn diag_config_write(app: AppHandle, name: String, content: String) -> Resul
 pub fn broker_cmd(app: AppHandle, args: Vec<String>) -> Result<String, String> {
     // 仅放行已知子命令，杜绝任意参数注入。
     let sub = args.first().map(|s| s.as_str()).unwrap_or("");
-    if !matches!(sub, "status" | "sync" | "order" | "reset-sim") {
+    if !matches!(
+        sub,
+        "status" | "sync" | "order" | "reset-sim"
+            | "detect" | "connect" | "eastmoney-auth" | "eastmoney-logout"
+    ) {
         return Err(format!("非法 broker 子命令: {sub}"));
     }
     let dir = ensure_pipeline(&app).ok_or("未找到 data-pipeline")?;

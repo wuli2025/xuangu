@@ -38,6 +38,7 @@ def _no_proxy_session_init(self, *a, **k):
 _rq.sessions.Session.__init__ = _no_proxy_session_init
 
 import akshare as ak
+import numpy as np
 import pandas as pd
 
 BASE = Path(__file__).resolve().parent
@@ -152,7 +153,6 @@ def heat_score(code, idx):
     evidence, h = {}, 50.0
     val = idx["by_code"].get(code)
     if val is not None and pd.notna(val) and idx["sorted"] is not None and len(idx["sorted"]):
-        import numpy as np
         pos = int(np.searchsorted(idx["sorted"], val, side="left"))
         h = pos / len(idx["sorted"]) * 100
         evidence["关注指数"] = round(float(val), 1)
@@ -312,6 +312,7 @@ def init_db():
 
 
 def save(con, rec):
+    """只 execute 不 commit；由调用方在批量写完后统一 commit（减少 fsync 次数）。"""
     con.execute("""INSERT OR REPLACE INTO sentiment
         (code,name,sector,date,temperature,level,signal,h,f,s,evidence,created_at)
         VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
@@ -319,7 +320,6 @@ def save(con, rec):
          rec["level"], rec["signal"], rec["breakdown"]["热度H"], rec["breakdown"]["资金F"],
          rec["breakdown"]["文本情感S"], json.dumps(rec["evidence"], ensure_ascii=False),
          dt.datetime.now().isoformat(timespec="seconds")))
-    con.commit()
 
 
 def write_json(path_list, obj):
@@ -387,6 +387,7 @@ def main():
         save(con, rec)
         results.append(rec)
         log(f"  {code} {name:<6} 温度={t:<5} [{lvl}] H={h} F={f}")
+    con.commit()  # 批量写完一次性提交（替代逐行 commit，省 fsync）
 
     results.sort(key=lambda r: r["temperature"], reverse=True)
 

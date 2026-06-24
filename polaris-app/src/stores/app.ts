@@ -16,6 +16,7 @@ export type ViewKey =
   | "report" // 个股报告
   | "sources" // 信源（采集的信源 + 采集方式目录）
   | "chat" // 对话后台引擎(无导航，供报告生成调用)
+  | "aichat" // 对话包（纯 AI 投顾对话，复用 chat_send 引擎）
   | "env_doctor"
   | "update"
   | "settings";

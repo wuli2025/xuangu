@@ -45,6 +45,7 @@ const primaryNav: NavItem[] = [
   { key: "fib", label: "斐波选股", icon: Waves },
   { key: "diagnose", label: "自选诊断", icon: ClipboardCheck },
   { key: "account", label: "账户", icon: Wallet },
+  { key: "aichat", label: "对话", icon: MessageCircle },
   { key: "report", label: "个股报告", icon: FileText },
   { key: "sources", label: "信源", icon: Database },
 ];
