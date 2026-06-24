@@ -43,7 +43,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           tag="${{ github.ref_name }}"
-          notes=$'查看 CHANGELOG 或提交记录了解本次更新内容。\n\nmacOS 用户首次打开若被 Gatekeeper 拦截，请在「系统设置 → 隐私与安全性」中点击「仍要打开」，或在终端执行：xattr -cr /Applications/ZhiTouGu.app'
+          notes=$(printf '%s\n\n%s' \
+            '查看 CHANGELOG 或提交记录了解本次更新内容。' \
+            'macOS 用户首次打开若被 Gatekeeper 拦截，请在「系统设置 → 隐私与安全性」中点击「仍要打开」，或在终端执行：xattr -cr /Applications/ZhiTouGu.app')
           # 幂等：若 Release 已存在（例如重跑 workflow），直接复用
           gh release create "$tag" \
             --title "智投顾 $tag" \
@@ -65,18 +67,12 @@ jobs:
           - platform: windows-latest
             target: x86_64-pc-windows-msvc
             bundle: nsis
-            prepare_shell: pwsh
-            prepare_cmd: ./scripts/prepare_pyruntime.ps1
           - platform: macos-latest
             target: aarch64-apple-darwin
             bundle: app
-            prepare_shell: bash
-            prepare_cmd: bash ./scripts/prepare_pyruntime.sh 20241016 3.12.7 aarch64-apple-darwin
           - platform: macos-13
             target: x86_64-apple-darwin
             bundle: app
-            prepare_shell: bash
-            prepare_cmd: bash ./scripts/prepare_pyruntime.sh 20241016 3.12.7 x86_64-apple-darwin
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
@@ -101,9 +97,15 @@ jobs:
 
       # 内置 Python 运行时 + 依赖(akshare/pandas/numpy) + data-pipeline 源码 → 打进安装包资源。
       # 用户机器开箱即用，无需自装 Python。详见 scripts/prepare_pyruntime.* 与 tauri.conf bundle.resources。
-      - name: Stage bundled Python runtime + pipeline
-        shell: ${{ matrix.prepare_shell }}
-        run: ${{ matrix.prepare_cmd }}
+      - name: Stage bundled Python runtime + pipeline (Windows)
+        if: matrix.platform == 'windows-latest'
+        shell: pwsh
+        run: ./scripts/prepare_pyruntime.ps1
+
+      - name: Stage bundled Python runtime + pipeline (macOS)
+        if: matrix.platform != 'windows-latest'
+        shell: bash
+        run: bash ./scripts/prepare_pyruntime.sh 20241016 3.12.7 ${{ matrix.target }}
 
       - name: Build, sign & upload release asset
         uses: tauri-apps/tauri-action@v0
