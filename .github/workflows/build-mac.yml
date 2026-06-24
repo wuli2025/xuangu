@@ -20,6 +20,8 @@
 #       隐私与安全性 → 仍要打开」,或终端 `xattr -cr /Applications/智投顾.app`。
 #       要彻底免警告需 Apple Developer 证书 + notarytool 公证(后续 CI 计划)。
 # ─────────────────────────────────────────────────────────────
+# 说明：正式版自动更新已由 release.yml 统一负责（tag 触发，构建 + 签名 + 上传 Release + 合并 latest.json）。
+# 本工作流仅用于本地/预发布调试 .dmg，不进入远程更新链。
 name: build-mac
 
 on:
