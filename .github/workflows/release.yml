@@ -136,8 +136,13 @@ jobs:
     steps:
       - name: Generate and upload latest.json
         shell: bash
+        # ⚠️ 本 job 不做 actions/checkout，所以工作目录不是 git 仓库；gh 必须靠 GH_REPO
+        # 才能定位仓库，否则所有 `gh release ...` 会报 "fatal: not a git repository" 直接失败。
+        # （tauri-action 本身也会生成并合并一份 latest.json；本 job 作为确定性兜底，
+        #  保证两平台签名一定被合进同一份 latest.json，不依赖 tauri-action 的并发上传顺序。）
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
           tag="${{ github.ref_name }}"
